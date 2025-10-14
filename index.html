@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Strength Workout & Tracker</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start; /* Align to top to give space for the report area */
+            justify-content: center;
+            background-color: #0d1117; /* Dark background */
+        }
+        /* Custom scrollbar for aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #161b22;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444c56;
+        }
+        .set-input {
+            /* Uses relative width for responsiveness on all screen sizes */
+            width: 45%; 
+            text-align: center;
+            padding: 8px;
+            border: 1px solid #374151;
+            background-color: #1f2937;
+            color: #d1d5db;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="w-full max-w-4xl p-4 md:p-8 mt-8 pb-16">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-blue-400 mb-2 tracking-tight">The Strength Logbook (Single Set)</h1>
+            <p class="text-lg text-gray-400">Generate, track, and log your full-body strength workout with a single working set per lift.</p>
+        </header>
+
+        <!-- Click Counter & Reset -->
+        <div class="flex flex-wrap justify-center gap-4 mb-10">
+            <button id="click-counter" onclick="incrementCounter()"
+                    class="
+                        flex items-center space-x-2 px-6 py-3 text-xl font-bold rounded-xl
+                        bg-gray-800 text-yellow-400 shadow-2xl shadow-gray-900/50
+                        hover:bg-gray-700 active:scale-95 transition-all duration-150
+                    ">
+                <span>Total Clicks:</span>
+                <span id="counter-display" class="w-8 text-center">0</span>
+            </button>
+            <button onclick="resetCounter()"
+                    class="
+                        px-6 py-3 text-xl font-bold rounded-xl bg-red-600 text-white
+                        hover:bg-red-500 active:scale-95 transition-all duration-150
+                    ">
+                Reset Counter
+            </button>
+        </div>
+
+        <!-- Timer Section -->
+        <div class="bg-[#1f2937] p-6 rounded-2xl shadow-xl border border-gray-700 mb-10">
+            <h2 class="text-2xl font-bold text-gray-300 mb-4 text-center">Interval Timer (5 Sets)</h2>
+            
+            <!-- Protocol Selection -->
+            <div class="flex justify-center space-x-4 mb-6">
+                <button onclick="selectProtocol(300, 60)" id="protocol-5-1"
+                        class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
+                    5 min ON / 1 min OFF
+                </button>
+                <button onclick="selectProtocol(180, 60)" id="protocol-3-1"
+                        class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
+                    3 min ON / 1 min OFF
+                </button>
+            </div>
+
+            <!-- Timer Display -->
+            <div id="timer-display-card" class="p-6 rounded-xl text-center transition-all duration-500 bg-gray-800 shadow-inner">
+                <p id="state-display" class="text-2xl font-semibold text-gray-400 mb-2">
+                    Select a Protocol to Start
+                </p>
+                <p id="time-display" class="text-7xl md:text-8xl font-extrabold text-blue-400 mb-2">
+                    --:--
+                </p>
+                <p id="set-display" class="text-xl font-medium text-gray-500">
+                    Set: 0 / 5
+                </p>
+            </div>
+            
+            <!-- Control Button -->
+            <div class="mt-6 flex justify-center">
+                <button onclick="startStopTimer()" id="timer-control-btn" disabled
+                        class="
+                            px-8 py-3 text-xl font-semibold rounded-xl transition-all duration-300
+                            bg-gray-600 text-white
+                            disabled:opacity-50 disabled:cursor-not-allowed
+                        ">
+                    Start Timer
+                </button>
+            </div>
+        </div>
+
+        <!-- Workout Grid (Responsive: 1 column on mobile, 2 on tablet, 3 on desktop) -->
+        <div id="workout-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Content will be injected here -->
+        </div>
+
+        <!-- Action Buttons (Responsive: stacks on mobile, side-by-side on tablet/desktop) -->
+        <div class="flex flex-col md:flex-row justify-center space-y-4 md:space-y-0 md:space-x-4 mb-10">
+            <button onclick="generateWorkout()"
+                    class="
+                        px-8 py-4 text-xl font-semibold rounded-xl transition-all duration-300
+                        bg-blue-600 text-white shadow-lg shadow-blue-500/50
+                        hover:bg-blue-500 hover:shadow-xl hover:shadow-blue-400/50
+                        focus:outline-none focus:ring-4 focus:ring-blue-500/70 active:scale-95
+                    ">
+                Generate New Workout
+            </button>
+            <button id="report-btn" onclick="generateWorkoutReport()" disabled
+                    class="
+                        px-8 py-4 text-xl font-semibold rounded-xl transition-all duration-300
+                        bg-green-700 text-white shadow-lg shadow-green-500/50
+                        hover:bg-green-600 hover:shadow-xl hover:shadow-green-400/50
+                        focus:outline-none focus:ring-4 focus:ring-green-500/70 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed
+                    ">
+                📄 Generate Copy-Paste Report
+            </button>
+        </div>
+        
+        <!-- Report Area -->
+        <div id="report-area" class="mt-8 pt-6 border-t border-gray-700 hidden">
+            <h2 class="text-3xl font-bold text-gray-300 mb-4 text-center">Workout Summary</h2>
+            
+            <div id="loading-spinner" class="hidden text-center">
+                <svg class="animate-spin h-8 w-8 text-blue-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-gray-400 mt-2">Condensing workout data into a single paragraph...</p>
+            </div>
+            
+            <div id="report-result" class="bg-[#161b22] p-6 rounded-xl text-gray-300 shadow-2xl border border-gray-700 hidden">
+                <p id="report-text" class="text-lg break-words whitespace-pre-wrap"></p>
+                <button onclick="copyToClipboard()" class="mt-4 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
+                    Copy Report to Clipboard
+                </button>
+                <span id="copy-message" class="ml-4 text-sm text-green-400 hidden">Copied!</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        // --- Mandatory Firebase & API Key Setup (Boilerplate for the environment) ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const apiKey = ""; // Leave as empty string for the Canvas environment
+
+        let app;
+        let db;
+        let auth;
+        let userId = 'anon';
+        let isAuthReady = false;
+        let currentWorkout = {}; 
+        
+        // --- Counter Variables and Functions ---
+        let clickCount = 0; 
+
+        window.incrementCounter = function() {
+            clickCount++;
+            document.getElementById('counter-display').textContent = clickCount;
+        }
+        
+        window.resetCounter = function() {
+            clickCount = 0;
+            document.getElementById('counter-display').textContent = clickCount;
+        }
+        
+        // --- Timer Variables ---
+        let timerInterval = null;
+        let isTimerRunning = false;
+        let currentSet = 0; // 0 for Prep, 1 to 5 for Work/Rest cycles
+        let currentState = 'IDLE'; // 'IDLE', 'PREP', 'WORK', 'REST', 'FINISHED'
+        let timeRemaining = 0;
+        let workDuration = 0;
+        let restDuration = 0;
+        const totalSets = 5;
+        const prepDuration = 30;
+
+        // --- Firebase Init ---
+        async function initFirebase() {
+            try {
+                if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+                    console.warn("Firebase config not found or is empty. Running anonymously.");
+                }
+
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                userId = auth.currentUser?.uid || 'anon-user-' + crypto.randomUUID();
+                isAuthReady = true;
+                console.log("Firebase initialized. User ID:", userId);
+            } catch (error) {
+                console.error("Error during Firebase initialization or sign-in:", error);
+            }
+        }
+        
+        // --- Timer Utility Functions ---
+        
+        /** Formats seconds into MM:SS string. */
+        function formatTime(totalSeconds) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+        
+        /** Updates the visual display elements of the timer. */
+        function updateTimerDisplay() {
+            const timeDisplay = document.getElementById('time-display');
+            const stateDisplay = document.getElementById('state-display');
+            const setDisplay = document.getElementById('set-display');
+            const card = document.getElementById('timer-display-card');
+            const controlBtn = document.getElementById('timer-control-btn');
+
+            timeDisplay.textContent = formatTime(timeRemaining);
+            setDisplay.textContent = `Set: ${currentSet} / ${totalSets}`;
+            
+            // Update state text and color
+            let stateText = '';
+            let colorClass = 'text-blue-400';
+            
+            card.className = 'p-6 rounded-xl text-center transition-all duration-500 shadow-inner';
+            
+            switch (currentState) {
+                case 'IDLE':
+                    stateText = 'Select a Protocol to Start';
+                    colorClass = 'text-gray-400';
+                    card.classList.add('bg-gray-800');
+                    controlBtn.textContent = 'Start Timer';
+                    break;
+                case 'PREP':
+                    stateText = 'GET READY (Prep)';
+                    colorClass = 'text-yellow-400';
+                    card.classList.add('bg-yellow-800/30');
+                    controlBtn.textContent = 'Pause Timer';
+                    break;
+                case 'WORK':
+                    stateText = 'WORK (Set ' + currentSet + ')';
+                    colorClass = 'text-green-400';
+                    card.classList.add('bg-green-800/30');
+                    controlBtn.textContent = 'Pause Timer';
+                    break;
+                case 'REST':
+                    stateText = 'REST (Break)';
+                    colorClass = 'text-red-400';
+                    card.classList.add('bg-red-800/30');
+                    controlBtn.textContent = 'Pause Timer';
+                    break;
+                case 'FINISHED':
+                    stateText = 'WORKOUT COMPLETE!';
+                    colorClass = 'text-blue-400';
+                    card.classList.add('bg-blue-800/30');
+                    controlBtn.textContent = 'Start Over';
+                    break;
+            }
+            stateDisplay.textContent = stateText;
+            timeDisplay.className = `text-7xl md:text-8xl font-extrabold mb-2 ${colorClass}`;
+        }
+        
+        /** Main countdown logic, called every second. */
+        function countdown() {
+            if (timeRemaining > 0) {
+                timeRemaining--;
+                updateTimerDisplay();
+                return;
+            }
+            
+            // Time is zero, transition state
+            switch (currentState) {
+                case 'PREP':
+                    currentSet = 1;
+                    currentState = 'WORK';
+                    timeRemaining = workDuration;
+                    break;
+                case 'WORK':
+                    if (currentSet < totalSets) {
+                        currentState = 'REST';
+                        timeRemaining = restDuration;
+                    } else {
+                        // Last set finished
+                        clearInterval(timerInterval);
+                        isTimerRunning = false;
+                        currentState = 'FINISHED';
+                        timeRemaining = 0;
+                    }
+                    break;
+                case 'REST':
+                    currentSet++;
+                    currentState = 'WORK';
+                    timeRemaining = workDuration;
+                    break;
+                case 'IDLE':
+                case 'FINISHED':
+                    // Should not happen when timer is running
+                    clearInterval(timerInterval);
+                    isTimerRunning = false;
+                    break;
+            }
+            updateTimerDisplay();
+        }
+
+        // --- Timer Control Functions ---
+        
+        /** Selects a workout protocol and resets the timer state. */
+        window.selectProtocol = function(workTime, restTime) {
+            // Stop any running timer first
+            if (isTimerRunning) {
+                clearInterval(timerInterval);
+                isTimerRunning = false;
+            }
+
+            // Reset state
+            workDuration = workTime;
+            restDuration = restTime;
+            currentSet = 0;
+            currentState = 'IDLE';
+            timeRemaining = workDuration; // Just for initial display (5:00 or 3:00)
+            
+            // Update button styles to show selection
+            document.getElementById('protocol-5-1').classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
+            document.getElementById('protocol-3-1').classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
+            
+            const selectedBtnId = (workTime === 300) ? 'protocol-5-1' : 'protocol-3-1';
+            document.getElementById(selectedBtnId).classList.add('bg-yellow-600', 'ring-2', 'ring-yellow-400');
+
+            // Enable control button and update display
+            document.getElementById('timer-control-btn').disabled = false;
+            document.getElementById('time-display').textContent = formatTime(workDuration);
+            document.getElementById('set-display').textContent = `Set: 0 / ${totalSets} (Ready)`;
+            document.getElementById('state-display').textContent = `Ready: ${formatTime(workDuration/60)}M Work / ${formatTime(restDuration/60)}M Rest`;
+            document.getElementById('timer-control-btn').textContent = 'Start Timer';
+        }
+
+        /** Starts, pauses, or restarts the timer. */
+        window.startStopTimer = function() {
+            const controlBtn = document.getElementById('timer-control-btn');
+
+            if (currentState === 'FINISHED') {
+                // Restart logic
+                selectProtocol(workDuration, restDuration); // Re-selects the last protocol
+                return;
+            }
+
+            if (isTimerRunning) {
+                // Pause timer
+                clearInterval(timerInterval);
+                isTimerRunning = false;
+                controlBtn.textContent = 'Resume Timer';
+                document.getElementById('state-display').textContent += ' (PAUSED)';
+            } else {
+                // Start or Resume timer
+                if (currentState === 'IDLE') {
+                    // Initial start -> go to PREP phase
+                    currentState = 'PREP';
+                    timeRemaining = prepDuration;
+                }
+                
+                timerInterval = setInterval(countdown, 1000);
+                isTimerRunning = true;
+                controlBtn.textContent = 'Pause Timer';
+                updateTimerDisplay(); // Update immediately to show new state/time
+            }
+        }
+
+
+        // --- Utility: Exponential Backoff for API Calls ---
+        async function fetchWithBackoff(url, options, maxRetries = 5) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) {
+                        return response;
+                    }
+                    if (i === maxRetries - 1) throw new Error(`Fetch failed after ${maxRetries} attempts with status ${response.status}.`);
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        throw error;
+                    }
+                }
+                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+
+        // --- Utility Function: Get a random element from an array ---
+        function getRandomExercise(array) {
+            const randomIndex = Math.floor(Math.random() * array.length);
+            return array[randomIndex];
+        }
+
+        // --- Utility Function: Get icon SVG based on category ---
+        function getIconPath(category) {
+            switch (category) {
+                case 'Squat': return 'M3 14H6V21H18V14H21M13 3H11V6H13M12 21V16M8 12V14H16V12';
+                case 'Hinge': return 'M5 19V17H19V19M12 3V17M17 17H7V15H17';
+                case 'Push': return 'M21 8V16M3 8V16M16 12H8M16 8H8V16H16Z';
+                case 'Pull': return 'M4 6H20M12 6V18M15 15L12 18L9 15';
+                case 'Core': return 'M12 2C6.477 2 2 6.477 2 12C2 17.523 6.477 22 12 22C17.523 22 22 17.523 22 12C22 6.477 17.523 2 12 2ZM12 4V20M12 4C14.21 4 16 5.79 16 8V16C16 18.21 14.21 20 12 20';
+                default: return 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14l-4-4 4-4 4 4-4 4z';
+            }
+        }
+        
+        // --- Core Data: The Exercise Catalog ---
+        const exercises = {
+            Squat: ['SB Goblet Squat', 'SB Shoulder Squat', 'SB Goblet Lunge', 'SB Shoulder Lunge', 'KB Goblet Squat', 'KB Shoulder Squat', 'KB Goblet Lunge', 'KB Shoulder Lunge', 'KB Split Squat', 'KB Step Up', 'KB BSS'],
+            Hinge: ['Hinge', 'SB Clean', 'SB Hip Thrust', 'SB Hip Bridge', 'KB Single Swing', 'KB Double Swing', 'KB Double DL', 'KB Single RDL', 'KB Kneeling Squat', 'SB DL', 'SB Single RDL', 'Sumo Hinge'],
+            Push: ['SB Floor Press', 'SB Incline Press', 'SB OHP', 'KB OHP', 'KB Incline Press', 'Normal Push Up', 'Decline Push Up', 'Incline Push Up', 'Ring Push Up', 'Ring Dip', 'One Arm Push Up'],
+            Pull: ['SB Row', 'KB Row', 'Pull Up', 'Chin Up', 'Ring Row'],
+            Core: ['KB Sit Up', 'KB Get Up', 'SB Get Up', 'SB Goblet Carry', 'SB Shoulder Carry', 'KB Goblet Carry', 'KB Shoulder Carry', 'KB WindMill', 'KB Around the World', 'KB Marches', 'SB Sled Work', 'Roll Over']
+        };
+
+        // --- Workout Tracking Functions ---
+
+        /**
+         * Renders the single set input row for an exercise.
+         */
+        function renderSingleSetHtml(category, set) {
+            // Note: Placeholder is set to 'Weight' as the unit (kg) is implicit.
+            return `
+                <div class="flex justify-between items-center text-sm text-gray-300 bg-gray-700/30 p-2 rounded-lg">
+                    <input 
+                        type="number" 
+                        min="0" 
+                        value="${set.weight}" 
+                        placeholder="Weight" 
+                        class="set-input" 
+                        oninput="updateSingleSet('${category}', 'weight', this.value)"
+                    >
+                    <span class="text-gray-400 font-bold text-lg">x</span>
+                    <input 
+                        type="number" 
+                        min="0" 
+                        value="${set.reps}" 
+                        placeholder="Reps"
+                        class="set-input" 
+                        oninput="updateSingleSet('${category}', 'reps', this.value)"
+                    >
+                </div>
+            `;
+        }
+
+        /**
+         * Updates the weight or reps for the single set (always at index 0).
+         */
+        window.updateSingleSet = function(category, field, value) {
+            const setIndex = 0; 
+            if (currentWorkout[category] && currentWorkout[category].sets && currentWorkout[category].sets[setIndex]) {
+                const numValue = value; 
+                currentWorkout[category].sets[setIndex][field] = numValue;
+            }
+            checkReportButtonStatus(); 
+        }
+        
+        /**
+         * Checks if any logged exercise has non-zero weight or reps and updates the report button state.
+         */
+        function checkReportButtonStatus() {
+            const reportBtn = document.getElementById('report-btn');
+            const hasData = Object.values(currentWorkout).some(exercise => {
+                const set = exercise.sets[0]; 
+                const weight = parseFloat(set.weight) || 0;
+                const reps = parseFloat(set.reps) || 0;
+                return set && (weight > 0 || reps > 0);
+            });
+            reportBtn.disabled = !hasData;
+        }
+
+        // --- Main Logic: Generate and Render Workout ---
+        window.generateWorkout = function() {
+            const categories = Object.keys(exercises);
+            let htmlContent = '';
+            currentWorkout = {}; 
+            
+            document.getElementById('report-area').classList.add('hidden');
+            document.getElementById('report-result').classList.add('hidden');
+
+            categories.forEach(category => {
+                const availableExercises = exercises[category];
+                const selectedExercise = getRandomExercise(availableExercises);
+                const iconPath = getIconPath(category);
+                
+                const singleSet = { weight: '', reps: '' }; 
+                currentWorkout[category] = {
+                    name: selectedExercise,
+                    sets: [singleSet]
+                };
+
+                htmlContent += `
+                    <div class="
+                        bg-[#161b22] p-6 rounded-2xl shadow-xl transition-transform duration-200 hover:shadow-blue-500/20
+                        border border-gray-700 flex flex-col justify-between
+                    ">
+                        <!-- Card Header (Category) -->
+                        <div class="flex items-center mb-4">
+                            <div class="p-3 bg-blue-600 rounded-full mr-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white">
+                                    <path d="${iconPath}" />
+                                </svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-gray-200">${category}</h2>
+                        </div>
+
+                        <!-- Exercise Result -->
+                        <div class="min-h-[30px] flex items-center mb-4">
+                            <p class="text-2xl font-extrabold text-blue-300 tracking-tight">
+                                ${selectedExercise}
+                            </p>
+                        </div>
+                        
+                        <!-- Single Set Tracker -->
+                        <div id="sets-container-${category}" class="pb-3 border-t border-gray-600 pt-3">
+                            ${renderSingleSetHtml(category, singleSet)}
+                        </div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('workout-grid').innerHTML = htmlContent;
+            checkReportButtonStatus();
+        }
+
+
+        // --- LLM Integration: Generate Workout Report ---
+
+        /**
+         * Generates a copy-paste summary of the completed workout using the Gemini API.
+         */
+        window.generateWorkoutReport = async function() {
+            const reportBtn = document.getElementById('report-btn');
+            const spinner = document.getElementById('loading-spinner');
+            const reportArea = document.getElementById('report-area');
+            const resultDiv = document.getElementById('report-result');
+            const reportTextEl = document.getElementById('report-text');
+
+            reportArea.classList.remove('hidden');
+
+            // 1. Compile logged data into a clear string
+            let loggedDataString = "Completed Strength Workout:\n";
+            let foundData = false;
+
+            Object.keys(currentWorkout).forEach(category => {
+                const exercise = currentWorkout[category];
+                const singleSet = exercise.sets[0];
+                
+                const weight = parseFloat(singleSet.weight) || 0;
+                const reps = parseFloat(singleSet.reps) || 0;
+
+                if (weight > 0 || reps > 0) {
+                    foundData = true;
+                    const setsString = `${weight}kg x ${reps} reps`;
+                    loggedDataString += `${exercise.name}: ${setsString}.\n`;
+                }
+            });
+
+            if (!foundData) {
+                reportTextEl.textContent = "Please log at least one exercise with non-zero reps or weight before generating a report.";
+                resultDiv.classList.remove('hidden');
+                return;
+            }
+
+            // 2. Prepare UI for loading
+            reportBtn.disabled = true;
+            reportBtn.innerHTML = 'Generating Report...';
+            spinner.classList.remove('hidden');
+            resultDiv.classList.add('hidden');
+            reportTextEl.textContent = '';
+            document.getElementById('copy-message').classList.add('hidden');
+
+
+            const systemPrompt = "You are a concise workout logger. Your task is to take the raw workout data provided (which consists of a single set per exercise) and condense it into a single, clean paragraph, formatted for easy copy-pasting into a personal fitness log. Do not use bullet points or line breaks. The format should be: [Exercise Name] [Weight]kg x [Reps]R, [Exercise Name] [Weight]kg x [Reps]R, ... . Only output the final paragraph, no pre-amble or extra text.";
+            const userQuery = `Condense the following single-set workout data into a single paragraph summary: \n\n${loggedDataString}`;
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            try {
+                const response = await fetchWithBackoff(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (text) {
+                    reportTextEl.textContent = text.trim();
+                    resultDiv.classList.remove('hidden');
+                } else {
+                    reportTextEl.textContent = `Error: Could not retrieve report. (Raw data: ${loggedDataString.replace(/\n/g, ' | ')})`;
+                    resultDiv.classList.remove('hidden');
+                }
+
+            } catch (error) {
+                console.error("Gemini API call failed:", error);
+                reportTextEl.textContent = `An unexpected error occurred: ${error.message}. (Raw data: ${loggedDataString.replace(/\n/g, ' | ')})`;
+                resultDiv.classList.remove('hidden');
+            } finally {
+                reportBtn.disabled = false;
+                reportBtn.innerHTML = '📄 Generate Copy-Paste Report';
+                spinner.classList.add('hidden');
+                checkReportButtonStatus();
+            }
+        }
+        
+        // --- Clipboard Function ---
+        window.copyToClipboard = function() {
+            const textToCopy = document.getElementById('report-text').textContent;
+            
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            document.body.appendChild(textArea);
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                const copyMessage = document.getElementById('copy-message');
+                copyMessage.classList.remove('hidden');
+                setTimeout(() => copyMessage.classList.add('hidden'), 2000);
+            } catch (err) {
+                console.error('Copy failed:', err);
+            }
+            document.body.removeChild(textArea);
+        }
+
+        // Initialize on load
+        window.onload = async function() {
+            await initFirebase();
+            generateWorkout();
+            updateTimerDisplay(); // Initialize timer UI
+        };
+    </script>
+</body>
+</html>
