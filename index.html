@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPEMs Tracker (Strength, Power, Endurance, Mobility)</title>
+    <title>SPEMs Daily Tracker</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Tone.js for high-quality audio cues -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
     <!-- Use Inter font -->
     <style>
-        @import url('https://fonts.fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body {
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
@@ -19,1420 +19,24 @@
             justify-content: center;
             background-color: #0d1117; /* Dark background */
         }
-        /* Custom scrollbar for aesthetics */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #161b22; }
         ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #444c56; }
-
-        .set-input {
-            width: 45%; 
-            text-align: center;
+        .input-field {
             padding: 8px;
             border: 1px solid #374151;
             background-color: #1f2937;
             color: #d1d5db;
             border-radius: 8px;
-            /* Hide arrows on number inputs */
-            -moz-appearance: textfield;
+            transition: border-color 0.2s;
         }
-        .set-input::-webkit-outer-spin-button,
-        .set-input::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
+        .input-field:focus {
+            border-color: #3b82f6;
+            outline: none;
         }
-        select { 
-            background-color: #161b22; 
-            appearance: none; /* Hide default dropdown arrow */
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='white'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 0.75rem center;
-            background-size: 1.5em 1.5em;
-        }
-        .btn-primary {
-            padding: 12px 24px;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 700;
-            color: white;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-        }
-    </style>
-</head>
-<body>
-
-    <div id="app-container" class="w-full max-w-4xl p-4 md:p-8 mt-8 pb-16">
-        <!-- Navigation Header -->
-        <header id="header" class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-extrabold text-blue-400 mb-2 tracking-tight">
-                <button onclick="navigateTo('home')" class="hover:text-blue-300 transition-colors">
-                    SPEMs Tracker
-                </button>
-            </h1>
-            <p id="subtitle" class="text-lg text-gray-400">Have a Date with Day: Weekly Training Schedule</p>
-        </header>
-
-        <!-- Main Content Area - Populated by JavaScript -->
-        <div id="app" class="text-white">
-            <!-- Content for Home, Strength, Endurance, Power, Mobility is injected here -->
-        </div>
-
-    </div>
-
-    <script type="module">
-        // --- MANDATORY REGENERATION CHECK: This file is complete and contains the fix for the Power timer reset. ---
-        // --- Mandatory Firebase & API Key Setup ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const apiKey = ""; 
-
-        let app;
-        let db;
-        let auth;
-        let userId = 'anon';
-        let isAuthReady = false;
-        
-        // --- Global App State ---
-        let currentView = 'home';
-        let currentModeData = {}; // Stores config for the active workout (e.g., { duration: 600, weight: 20 })
-        let currentWorkout = {}; // Stores exercise log data
-        
-        // --- Timer Variables ---
-        let timerInterval = null;
-        let isTimerRunning = false;
-        let setCycle = 0; // Current set/cycle number
-        let currentState = 'IDLE'; // 'IDLE', 'PREP', 'WORK', 'REST', 'PHASE_A', 'PHASE_B', 'FINISHED'
-        let timeRemaining = 0;
-        let totalCycles = 0;
-
-        const prepDuration = 10; 
-        
-        // --- Audio Variables (Tone.js) ---
-        let timerSynth = null;
-        let isAudioInitialized = false;
-
-        // --- Exercise Data ---
-        const strengthExercises = {
-            Squat: ['SB Goblet Squat', 'SB Shoulder Squat', 'KB Goblet Squat', 'KB Split Squat', 'KB Step Up'],
-            Hinge: ['SB DL', 'KB Single Swing', 'KB Double Swing', 'KB Double DL', 'KB Single RDL'],
-            Push: ['SB Floor Press', 'KB OHP', 'Normal Push Up', 'Ring Dip'],
-            Pull: ['SB Row', 'KB Row', 'Pull Up', 'Chin Up'],
-            Core: ['KB Sit Up', 'KB Get Up', 'SB Goblet Carry', 'KB WindMill']
-        };
-        const enduranceExercise = 'Iron Cardio: Clean + Press + Squat + Snatch';
-        const powerExercise = 'Viking Conditioning: Snatch';
-        
-        // Power Protocols: [work, rest, total cycles, required reps, required weight, name]
-        const powerProtocols = {
-            '80set': { work: 15, rest: 15, cycles: 80, reps: 7, weight: 20, name: '15s ON / 15s OFF (Max 80 Cycles)' },
-            '35set': { work: 32, rest: 32, cycles: 35, reps: 17, weight: 20, name: '32s ON / 32s OFF (Max 35 Cycles)' }
-        };
-        
-        // --- Utility: Firebase Init ---
-        async function initFirebase() {
-            try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                userId = auth.currentUser?.uid || 'anon-user-' + crypto.randomUUID();
-                isAuthReady = true;
-                console.log("Firebase initialized. User ID:", userId);
-            } catch (error) {
-                console.error("Error during Firebase initialization or sign-in:", error);
-            }
-        }
-        
-        // --- Utility: Audio (Tone.js) ---
-        function initAudio() {
-            if (isAudioInitialized) return;
-            try {
-                Tone.start(); 
-                timerSynth = new Tone.Synth({
-                    oscillator: { type: "sine" },
-                    envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 }
-                }).toDestination();
-                isAudioInitialized = true;
-                console.log("Audio Context initialized with Tone.js");
-            } catch (e) {
-                console.error("Failed to initialize Tone.js", e);
-            }
-        }
-
-        function playWorkSound() {
-            if (timerSynth) {
-                timerSynth.triggerAttackRelease("G4", "8n");
-                timerSynth.triggerAttackRelease("C5", "8n", Tone.now() + 0.15); 
-            }
-        }
-
-        function playRestSound() {
-            if (timerSynth) {
-                timerSynth.triggerAttackRelease("C3", "4n");
-            }
-        }
-
-        function playWarningBeep() {
-            if (timerSynth) {
-                timerSynth.triggerAttackRelease("E4", "16n");
-            }
-        }
-
-        function playFinishSound() {
-            if (timerSynth) {
-                timerSynth.triggerAttackRelease("C4", "8n");
-                timerSynth.triggerAttackRelease("E4", "8n", Tone.now() + 0.15);
-                timerSynth.triggerAttackRelease("G4", "8n", Tone.now() + 0.3);
-                timerSynth.triggerAttackRelease("C5", "4n", Tone.now() + 0.5);
-            }
-        }
-        
-        // --- Utility: Time & Selection ---
-        function formatTime(totalSeconds) {
-            const minutes = Math.floor(totalSeconds / 60);
-            const seconds = totalSeconds % 60;
-            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        }
-        
-        function getIconPath(category) {
-            switch (category) {
-                case 'Squat': return 'M3 14H6V21H18V14H21M13 3H11V6H13M12 21V16M8 12V14H16V12';
-                case 'Hinge': return 'M5 19V17H19V19M12 3V17M17 17H7V15H17';
-                case 'Push': return 'M21 8V16M3 8V16M16 12H8M16 8H8V16H16Z';
-                case 'Pull': return 'M4 6H20M12 6V18M15 15L12 18L9 15';
-                case 'Core': return 'M12 2C6.477 2 2 6.477 2 12C2 17.523 6.477 22 12 22C17.523 22 22 17.523 22 12C22 6.477 17.523 2 12 2ZM12 4V20M12 4C14.21 4 16 5.79 16 8V16C16 18.21 14.21 20 12 20';
-                case 'Endurance': return 'M20 10V14M4 10V14M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10-4.48-10-10-10zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM10 11h4v2h-4z';
-                case 'Power': return 'M12 2L4 5V11C4 15.6 7.1 19.8 12 21.5C16.9 19.8 20 15.6 20 11V5L12 2zM12 18V13.5M12 10.5V6M16 10.5L12 14.5L8 10.5';
-                case 'Mobility': return 'M12 22C6.477 22 2 17.523 2 12C2 6.477 6.477 2 12 2C17.523 2 22 6.477 22 12C22 17.523 17.523 22 12 22ZM12 4V20M12 4C14.21 4 16 5.79 16 8V16C16 18.21 14.21 20 12 20';
-                default: return 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14l-4-4 4-4 4 4-4 4z';
-            }
-        }
-        
-        function getRandomExercise(array) {
-            const randomIndex = Math.floor(Math.random() * array.length);
-            return array[randomIndex];
-        }
-
-        // --- Utility: API / Backoff ---
-        async function fetchWithBackoff(url, options, maxRetries = 5) {
-            for (let i = 0; i < maxRetries; i++) {
-                try {
-                    const response = await fetch(url, options);
-                    if (response.ok) { return response; }
-                    if (i === maxRetries - 1) throw new Error(`Fetch failed after ${maxRetries} attempts with status ${response.status}.`);
-                } catch (error) {
-                    if (i === maxRetries - 1) { throw error; }
-                }
-                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-
-
-        // #################################################################
-        // ########################## TIMER LOGIC ##########################
-        // #################################################################
-
-        /** Main countdown logic, called every second. */
-        function countdown() {
-            if (timeRemaining > 0) {
-                timeRemaining--;
-                if (timeRemaining > 0 && timeRemaining <= 3) {
-                    playWarningBeep();
-                }
-                updateTimerDisplay();
-                return;
-            }
-            
-            // Time is zero, transition state based on current view
-            
-            // 1. ENDURANCE & MOBILITY (Single/Multi-Phase Timers)
-            if (currentView === 'endurance' || currentView === 'mobility') {
-                if (currentState === 'PREP') {
-                    currentState = currentView === 'endurance' ? 'WORK' : 'PHASE_A';
-                    
-                    // Add defensive check for currentModeData.duration
-                    const defaultDuration = 1200; // 20 minutes default
-                    timeRemaining = currentModeData.duration && currentModeData.duration > 0 
-                                    ? currentModeData.duration 
-                                    : defaultDuration;
-                    
-                    playWorkSound();
-                } else if (currentState === 'PHASE_A' && currentView === 'mobility') {
-                    // Mobility: 10 mins Lower -> 10 mins Upper
-                    currentState = 'PHASE_B';
-                    timeRemaining = currentModeData.duration; // 10 minutes
-                    playWorkSound();
-                } else {
-                    // Transition to FINISHED (Endurance WORK or Mobility PHASE_B is done)
-                    stopTimer(true); 
-                    return;
-                }
-            } 
-            // 2. STRENGTH & POWER (Set Cycles)
-            else if (currentView === 'strength' || currentView === 'power') {
-                switch (currentState) {
-                    case 'PREP':
-                        setCycle = 1;
-                        currentState = 'WORK';
-                        timeRemaining = currentModeData.workDuration;
-                        playWorkSound();
-                        break;
-                    case 'WORK':
-                        if (setCycle < totalCycles) {
-                            currentState = 'REST';
-                            timeRemaining = currentModeData.restDuration;
-                            playRestSound();
-                        } else {
-                            // Transition: WORK (Last Set) -> FINISHED
-                            stopTimer(true);
-                            return;
-                        }
-                        break;
-                    case 'REST':
-                        setCycle++;
-                        currentState = 'WORK';
-                        timeRemaining = currentModeData.workDuration;
-                        playWorkSound();
-                        break;
-                }
-            } else {
-                stopTimer(true);
-            }
-
-            updateTimerDisplay();
-        }
-
-        /** Updates the visual display elements of the timer. */
-        function updateTimerDisplay() {
-            const timeDisplay = document.getElementById('time-display');
-            const stateDisplay = document.getElementById('state-display');
-            const setDisplay = document.getElementById('set-display');
-            const card = document.getElementById('timer-display-card');
-            
-            if (!timeDisplay) return; // Exit if not in a view with a timer
-
-            timeDisplay.textContent = formatTime(timeRemaining);
-            
-            let stateText = '';
-            let colorClass = 'text-blue-400';
-            let cycleText = '';
-
-            card.className = 'p-6 rounded-xl text-center transition-all duration-500 shadow-inner';
-            
-            // Handle State Text and Colors
-            switch (currentState) {
-                case 'IDLE':
-                    stateText = 'Ready to Start';
-                    colorClass = 'text-gray-400';
-                    card.classList.add('bg-gray-800');
-                    break;
-                case 'PREP':
-                    stateText = 'GET READY (Prep)';
-                    colorClass = 'text-yellow-400';
-                    card.classList.add('bg-yellow-800/30');
-                    break;
-                case 'WORK':
-                    stateText = 'WORK';
-                    colorClass = 'text-green-400';
-                    card.classList.add('bg-green-800/30');
-                    break;
-                case 'REST':
-                    stateText = 'REST (Break)';
-                    colorClass = 'text-red-400';
-                    card.classList.add('bg-red-800/30');
-                    break;
-                case 'PHASE_A':
-                    stateText = 'PHASE A: LOWER BODY MOBILITY';
-                    colorClass = 'text-purple-400';
-                    card.classList.add('bg-purple-800/30');
-                    break;
-                case 'PHASE_B':
-                    stateText = 'PHASE B: UPPER BODY MOBILITY';
-                    colorClass = 'text-teal-400';
-                    card.classList.add('bg-teal-800/30');
-                    break;
-                case 'FINISHED':
-                    stateText = 'WORKOUT COMPLETE!';
-                    colorClass = 'text-blue-400';
-                    card.classList.add('bg-blue-800/30');
-                    break;
-            }
-
-            // Handle Cycle Text
-            if (currentView === 'strength' || currentView === 'power') {
-                const current = (currentState === 'PREP' || currentState === 'IDLE' || currentState === 'FINISHED') ? 0 : setCycle;
-                cycleText = `Cycle: ${current} / ${totalCycles}`;
-            } else if (currentView === 'endurance') {
-                // Ensure currentModeData.totalDuration is available before formatting
-                const durationForDisplay = currentModeData.totalDuration || currentModeData.duration || 1200;
-                cycleText = `Duration: ${formatTime(durationForDisplay)} AMRAP`;
-            } else if (currentView === 'mobility') {
-                const totalMins = ((currentModeData.duration || 600) * 2) / 60;
-                cycleText = `Total Time: ${totalMins} Minutes`; 
-            }
-            
-            stateDisplay.textContent = stateText;
-            timeDisplay.className = `text-7xl md:text-8xl font-extrabold mb-2 ${colorClass}`;
-            setDisplay.textContent = cycleText;
-
-            // Update Start/Pause Button
-            const controlBtn = document.getElementById('timer-control-btn');
-            if (controlBtn) {
-                 if (currentState === 'FINISHED') {
-                    controlBtn.textContent = 'Start Over';
-                    controlBtn.disabled = false;
-                } else if (isTimerRunning) {
-                    controlBtn.textContent = 'Pause Timer';
-                    controlBtn.disabled = false;
-                } else if (currentState === 'IDLE' && controlBtn.textContent.includes('Start')) {
-                    // Do nothing, keep 'Start Timer'
-                } else {
-                    controlBtn.textContent = 'Resume Timer';
-                    controlBtn.disabled = false;
-                }
-            }
-        }
-        
-        /** Starts, pauses, or restarts the timer. */
-        window.startStopTimer = function() {
-            if (!isAudioInitialized) { initAudio(); }
-            
-            if (currentState === 'FINISHED') {
-                // Restart logic
-                if (currentView === 'strength') {
-                    const work = currentModeData.workDuration || 300;
-                    const rest = currentModeData.restDuration || 60;
-                    window.selectStrengthProtocol(work, rest);
-                } else if (currentView === 'endurance') {
-                    const duration = currentModeData.duration || 1200;
-                    const weight = currentModeData.weight || 32;
-                    window.selectEnduranceProtocol(duration, weight);
-                } else if (currentView === 'power') {
-                    // FIX: Ensure Power protocol is re-selected to reset timer and state
-                    const protocol = currentModeData.protocol || '80set';
-                    window.selectPowerProtocol(protocol);
-                } else if (currentView === 'mobility') {
-                    window.selectMobilityProtocol();
-                }
-                return;
-            }
-
-            if (isTimerRunning) {
-                // Pause timer
-                clearInterval(timerInterval);
-                isTimerRunning = false;
-                updateTimerDisplay(); 
-            } else {
-                // Start or Resume timer
-                if (currentState === 'IDLE') {
-                    // Initial start -> go to PREP phase
-                    currentState = 'PREP';
-                    timeRemaining = prepDuration; // 10 seconds
-                }
-                
-                timerInterval = setInterval(countdown, 1000);
-                isTimerRunning = true;
-                updateTimerDisplay(); 
-            }
-        }
-        
-        /** Stops the timer and potentially moves to FINISHED state. */
-        function stopTimer(isCompleted = false) {
-            clearInterval(timerInterval);
-            isTimerRunning = false;
-            setCycle = 0;
-            if (isCompleted) {
-                currentState = 'FINISHED';
-                timeRemaining = 0;
-                playFinishSound();
-            } else {
-                // When simply stopping/resetting, revert to IDLE
-                currentState = 'IDLE';
-            }
-            // Note: select*Protocol will handle setting the correct timeRemaining for the IDLE state display
-            updateTimerDisplay(); 
-        }
-
-        // #################################################################
-        // ######################## WORKOUT LOGIC ##########################
-        // #################################################################
-
-        /** Renders the single set input row for an exercise. (Used by Strength) */
-        function renderSingleSetHtml(category, set) {
-            return `
-                <div class="flex justify-between items-center text-sm text-gray-300 bg-gray-700/30 p-2 rounded-lg">
-                    <input 
-                        type="number" 
-                        min="0" 
-                        value="${set.weight}" 
-                        placeholder="Weight" 
-                        class="set-input" 
-                        oninput="updateSingleSet('${category}', 'weight', this.value)"
-                    >
-                    <span class="text-gray-400 font-bold text-lg">kg x</span>
-                    <input 
-                        type="number" 
-                        min="0" 
-                        value="${set.reps}" 
-                        placeholder="Reps"
-                        class="set-input" 
-                        oninput="updateSingleSet('${category}', 'reps', this.value)"
-                    >
-                    <span class="text-gray-400 font-bold text-lg">R</span>
-                </div>
-            `;
-        }
-
-        /** Updates the weight or reps for the single set. (Used by Strength) */
-        window.updateSingleSet = function(category, field, value) {
-            const setIndex = 0; 
-            if (currentWorkout[category] && currentWorkout[category].sets && currentWorkout[category].sets[setIndex]) {
-                const numValue = parseFloat(value) || ''; 
-                currentWorkout[category].sets[setIndex][field] = numValue;
-            }
-            checkReportButtonStatus(); 
-        }
-
-        /** Updates the exercise name when the user changes the dropdown. (Used by Strength) */
-        window.updateExerciseName = function(category, newName) {
-            if (currentWorkout[category]) {
-                currentWorkout[category].name = newName;
-            }
-        }
-        
-        /** Updates logging data for Endurance/Power/Mobility views. */
-        window.updateLogData = function(key, value) {
-            currentModeData[key] = value;
-            checkReportButtonStatus();
-        }
-
-        /** Checks if any logged data exists and updates the report button state. */
-        function checkReportButtonStatus() {
-            const reportBtn = document.getElementById('report-btn');
-            if (!reportBtn) return; 
-
-            let hasData = false;
-            
-            if (currentView === 'strength') {
-                hasData = Object.values(currentWorkout).some(exercise => {
-                    const set = exercise.sets[0]; 
-                    const weight = parseFloat(set.weight) || 0;
-                    const reps = parseFloat(set.reps) || 0;
-                    return set && (weight > 0 || reps > 0);
-                });
-            } else if (currentView === 'endurance') {
-                const rounds = parseFloat(document.getElementById('endurance-rounds')?.value) || 0;
-                hasData = rounds > 0;
-            } else if (currentView === 'power') {
-                const sets = parseFloat(document.getElementById('power-sets-completed')?.value) || 0;
-                hasData = sets > 0;
-            } else if (currentView === 'mobility') {
-                // Mobility doesn't require a log entry, report is always available
-                hasData = true;
-            }
-            
-            reportBtn.disabled = !hasData;
-        }
-
-
-        // #################################################################
-        // ########################## VIEWS ################################
-        // #################################################################
-        
-        // --- Shared Utility for Back Button ---
-        function renderBackButton() {
-            return `
-                <div class="mb-6">
-                    <button onclick="navigateTo('home')" 
-                        class="text-gray-400 hover:text-blue-400 transition-colors flex items-center text-lg font-semibold p-2 -ml-2 rounded-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 mr-1">
-                            <path d="M19 12H5M12 19l-7-7 7-7"/>
-                        </svg>
-                        Back to Schedule
-                    </button>
-                </div>
-            `;
-        }
-
-        // --- 1. Homepage View ---
-        function renderHome() {
-            stopTimer(false); // Stop any running timer
-
-            document.getElementById('subtitle').textContent = 'Have a Date with Day: Weekly Training Schedule';
-            document.getElementById('app').innerHTML = `
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
-                    ${renderDayButton('Monday', 'Endurance', 'indigo-600', 'endurance', { duration: 1200, weight: 32 })}
-                    ${renderDayButton('Tuesday', 'Strength', 'blue-600', 'strength')}
-                    ${renderDayButton('Wednesday', 'Power', 'red-600', 'power', { protocol: '80set' })}
-                    ${renderDayButton('Thursday', 'Strength', 'blue-600', 'strength')}
-                    ${renderDayButton('Friday', 'Endurance', 'indigo-600', 'endurance', { duration: 1200, weight: 32 })}
-                    ${renderDayButton('Saturday', 'Strength', 'blue-600', 'strength')}
-                    ${renderDayButton('Sunday', 'Mobility', 'green-600', 'mobility')}
-                </div>
-                <div class="mt-12 p-6 bg-[#1f2937] rounded-xl border border-gray-700">
-                    <h3 class="text-xl font-bold text-gray-300 mb-2">Instructions</h3>
-                    <ul class="list-disc list-inside text-gray-400 space-y-1 text-left">
-                        <li>Click any day to access the designated workout mode.</li>
-                        <li>**Strength:** Randomly generated lifts. Log single set (Weight x Reps).</li>
-                        <li>**Endurance:** Iron Cardio (C+P+S+Sn). Select duration/weight. Log total rounds completed.</li>
-                        <li>**Power:** Viking Snatch Intervals (15:15 or 32:32). Select protocol. Log total sets completed.</li>
-                        <li>**Mobility:** 20-minute guided timer (10 mins Lower, 10 mins Upper).</li>
-                    </ul>
-                </div>
-            `;
-        }
-        
-        function renderDayButton(day, type, color, view, data = {}) {
-            const icon = getIconPath(type);
-            return `
-                <button onclick="navigateTo('${view}', ${JSON.stringify(data)})"
-                    class="
-                        bg-${color} text-white p-6 rounded-xl shadow-xl hover:shadow-${color}/50 
-                        transition-all duration-300 transform hover:scale-[1.03] flex flex-col items-center justify-center
-                    "
-                >
-                    <div class="p-3 bg-white/20 rounded-full mb-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white">
-                            <path d="${icon}" />
-                        </svg>
-                    </div>
-                    <p class="text-2xl font-extrabold mb-1">${day}</p>
-                    <p class="text-lg font-semibold bg-black/20 px-3 py-1 rounded-full">${type}</p>
-                </button>
-            `;
-        }
-
-        // --- 2. Strength View (Original Logic Retained) ---
-        function renderStrength() {
-            stopTimer(false);
-            totalCycles = 5;
-            // Set defaults if currentModeData is empty
-            if (!currentModeData.workDuration) {
-                currentModeData = { workDuration: 300, restDuration: 60, totalDuration: 1800 }; 
-            }
-            
-            document.getElementById('subtitle').textContent = 'Strength Day: Single Set Log';
-            document.getElementById('app').innerHTML = `
-                ${renderBackButton()}
-                <div id="strength-content">
-                    <!-- Timer Section -->
-                    <div class="bg-[#1f2937] p-6 rounded-2xl shadow-xl border border-gray-700 mb-10">
-                        <h2 class="text-2xl font-bold text-gray-300 mb-4 text-center">Interval Timer (5 Sets)</h2>
-                        
-                        <!-- Protocol Selection -->
-                        <div class="flex flex-wrap justify-center gap-4 mb-6">
-                            <button onclick="selectStrengthProtocol(300, 60)" id="protocol-5-1"
-                                    class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
-                                5 min ON / 1 min OFF
-                            </button>
-                            <button onclick="selectStrengthProtocol(180, 60)" id="protocol-3-1"
-                                    class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
-                                3 min ON / 1 min OFF
-                            </button>
-                        </div>
-
-                        <!-- Timer Display -->
-                        ${getTimerDisplayHtml(formatTime(currentModeData.workDuration))}
-                        
-                        <!-- Control Button -->
-                        <div class="mt-6 flex justify-center">
-                            <button onclick="startStopTimer()" id="timer-control-btn" disabled
-                                    class="
-                                        px-8 py-3 text-xl font-semibold rounded-xl transition-all duration-300
-                                        bg-gray-600 text-white
-                                        disabled:opacity-50 disabled:cursor-not-allowed
-                                    ">
-                                Start Timer
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Workout Grid -->
-                    <div id="workout-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                        <!-- Exercises injected here -->
-                    </div>
-
-                    <!-- Action Buttons -->
-                    <div class="flex flex-col md:flex-row justify-center space-y-4 md:space-y-0 md:space-x-4 mb-10">
-                        <button onclick="generateWorkout()"
-                                class="btn-primary bg-blue-600 hover:bg-blue-500">
-                            Generate New Workout
-                        </button>
-                        <button id="report-btn" onclick="generateWorkoutReport()" disabled
-                                class="btn-primary bg-green-700 hover:bg-green-600 disabled:opacity-30 disabled:cursor-not-allowed">
-                            📄 Generate Copy-Paste Report
-                        </button>
-                    </div>
-
-                    <!-- Report Area -->
-                    <div id="report-area" class="mt-8 pt-6 border-t border-gray-700 hidden">
-                        ${getReportAreaHtml()}
-                    </div>
-                </div>
-            `;
-            // Select the protocol to apply active styles and enable button
-            window.selectStrengthProtocol(currentModeData.workDuration, currentModeData.restDuration); 
-            // Only generate a new workout if we don't have existing logged data 
-            if (Object.keys(currentWorkout).length === 0) {
-                 generateWorkout();
-            }
-           
-        }
-
-        window.selectStrengthProtocol = function(workTime, restTime) {
-            stopTimer(false);
-            currentModeData.workDuration = workTime;
-            currentModeData.restDuration = restTime;
-            
-            // FIX: Explicitly set timeRemaining for IDLE state display
-            currentState = 'IDLE';
-            timeRemaining = workTime; 
-            
-            // Update button styles
-            const btn51 = document.getElementById('protocol-5-1');
-            const btn31 = document.getElementById('protocol-3-1');
-            if (btn51 && btn31) {
-                btn51.classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-                btn31.classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-                const selectedBtn = (workTime === 300) ? btn51 : btn31;
-                if (selectedBtn) selectedBtn.classList.add('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-            }
-
-            // Update display
-            const controlBtn = document.getElementById('timer-control-btn');
-            if(controlBtn) controlBtn.disabled = false;
-            updateTimerDisplay();
-        }
-
-        window.generateWorkout = function() {
-            // Existing Strength Logic
-            const categories = Object.keys(strengthExercises);
-            let htmlContent = '';
-            currentWorkout = {}; 
-            
-            document.getElementById('report-area').classList.add('hidden');
-            document.getElementById('report-result').classList.add('hidden');
-
-            categories.forEach(category => {
-                const availableExercises = strengthExercises[category];
-                const selectedExercise = getRandomExercise(availableExercises);
-                const iconPath = getIconPath(category);
-                
-                const singleSet = { weight: '', reps: '' }; 
-                currentWorkout[category] = {
-                    name: selectedExercise,
-                    sets: [singleSet]
-                };
-
-                const optionsHtml = availableExercises.map(ex => 
-                    `<option value="${ex}" ${ex === selectedExercise ? 'selected' : ''}>${ex}</option>`
-                ).join('');
-
-                htmlContent += `
-                    <div class="bg-[#161b22] p-6 rounded-2xl shadow-xl transition-transform duration-200 hover:shadow-blue-500/20 border border-gray-700 flex flex-col">
-                        <div class="flex items-center mb-4">
-                            <div class="p-3 bg-blue-600 rounded-full mr-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white">
-                                    <path d="${iconPath}" />
-                                </svg>
-                            </div>
-                            <h2 class="text-2xl font-bold text-gray-200">${category}</h2>
-                        </div>
-                        <div class="min-h-[30px] flex items-center mb-4">
-                            <select 
-                                id="exercise-select-${category}"
-                                onchange="updateExerciseName('${category}', this.value)"
-                                class="w-full text-xl md:text-2xl font-extrabold text-blue-300 bg-[#161b22] border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 transition-colors cursor-pointer"
-                            >
-                                ${optionsHtml}
-                            </select>
-                        </div>
-                        <div id="sets-container-${category}" class="pb-3 border-t border-gray-600 pt-3">
-                            ${renderSingleSetHtml(category, singleSet)}
-                        </div>
-                    </div>
-                `;
-            });
-
-            document.getElementById('workout-grid').innerHTML = htmlContent;
-            checkReportButtonStatus();
-        }
-
-
-        // --- 3. Endurance View ---
-        function renderEndurance() {
-            stopTimer(false);
-            
-            // Set up default mode data for Endurance
-            const defaultDuration = 1200; // 20 minutes (1200 seconds)
-            const defaultWeight = 32;
-            const selectedDuration = currentModeData.duration || defaultDuration;
-            const selectedWeight = currentModeData.weight || defaultWeight;
-            
-            // Ensure currentModeData is fully populated for render and logic
-            currentModeData = { 
-                duration: selectedDuration, 
-                totalDuration: selectedDuration, 
-                weight: selectedWeight,
-                exerciseName: enduranceExercise,
-                roundsCompleted: currentModeData.roundsCompleted || '' // Preserve logged data if existing
-            };
-
-            document.getElementById('subtitle').textContent = 'Endurance Day: Iron Cardio AMRAP';
-            document.getElementById('app').innerHTML = `
-                ${renderBackButton()}
-                <div id="endurance-content">
-                    <div class="bg-[#1f2937] p-6 rounded-2xl shadow-xl border border-gray-700 mb-10">
-                        <h2 class="text-2xl font-bold text-gray-300 mb-4 text-center">Iron Cardio: Clean + Press + Squat + Snatch</h2>
-                        
-                        <div class="flex flex-col sm:flex-row justify-center gap-4 mb-6">
-                            <!-- Duration Selection -->
-                            <div class="flex flex-col space-y-2">
-                                <label class="text-gray-400 text-sm font-semibold">Duration (Minutes)</label>
-                                <div class="flex space-x-2">
-                                    ${renderDurationButton(600, 10)}
-                                    ${renderDurationButton(1200, 20)}
-                                    ${renderDurationButton(1800, 30)}
-                                </div>
-                            </div>
-                            <!-- Weight Selection -->
-                            <div class="flex flex-col space-y-2">
-                                <label class="text-gray-400 text-sm font-semibold">Weight (kg)</label>
-                                <div class="flex space-x-2">
-                                    ${renderWeightButton(20)}
-                                    ${renderWeightButton(32)}
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Timer Display -->
-                        ${getTimerDisplayHtml(formatTime(selectedDuration))}
-                        
-                        <!-- Control Button -->
-                        <div class="mt-6 flex justify-center">
-                            <button onclick="startStopTimer()" id="timer-control-btn" disabled
-                                    class="
-                                        px-8 py-3 text-xl font-semibold rounded-xl transition-all duration-300
-                                        bg-gray-600 text-white
-                                        disabled:opacity-50 disabled:cursor-not-allowed
-                                    ">
-                                Start Timer
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Log Area -->
-                    <div class="bg-[#161b22] p-6 rounded-2xl shadow-xl border border-gray-700 mb-8">
-                        <h3 class="text-xl font-bold text-gray-300 mb-4">Log Rounds Completed</h3>
-                        <div class="flex justify-center items-center gap-4">
-                             <input 
-                                type="number" 
-                                id="endurance-rounds"
-                                min="0" 
-                                value="${currentModeData.roundsCompleted}" 
-                                placeholder="Total Rounds" 
-                                class="set-input w-full max-w-xs" 
-                                oninput="updateLogData('roundsCompleted', this.value)"
-                            >
-                            <span class="text-2xl font-bold text-gray-400">Total Rounds</span>
-                        </div>
-                    </div>
-
-                    <!-- Report Buttons -->
-                    <div class="flex justify-center">
-                        <button id="report-btn" onclick="generateWorkoutReport()" disabled
-                                class="btn-primary bg-green-700 hover:bg-green-600 disabled:opacity-30 disabled:cursor-not-allowed">
-                            📄 Generate Copy-Paste Report
-                        </button>
-                    </div>
-
-                    <!-- Report Area -->
-                    <div id="report-area" class="mt-8 pt-6 border-t border-gray-700 hidden">
-                        ${getReportAreaHtml()}
-                    </div>
-                </div>
-            `;
-            // Initialize selected styles and timer
-            window.selectEnduranceProtocol(selectedDuration, selectedWeight);
-        }
-
-        function renderDurationButton(duration, minutes) {
-            // Check against currentModeData.duration for styling
-            const isSelected = (currentModeData.duration === duration);
-            return `
-                <button onclick="selectEnduranceProtocol(${duration}, ${currentModeData.weight || 32})"
-                    id="duration-${minutes}"
-                    class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200 ${isSelected ? 'bg-yellow-600 ring-2 ring-yellow-400' : ''}">
-                    ${minutes} min
-                </button>
-            `;
-        }
-
-        function renderWeightButton(weight) {
-            // Check against currentModeData.weight for styling
-            const isSelected = (currentModeData.weight === weight);
-            return `
-                <button onclick="selectEnduranceProtocol(${currentModeData.duration || 1200}, ${weight})"
-                    id="weight-${weight}"
-                    class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200 ${isSelected ? 'bg-yellow-600 ring-2 ring-yellow-400' : ''}">
-                    ${weight} kg
-                </button>
-            `;
-        }
-        
-        window.selectEnduranceProtocol = function(duration, weight) {
-            stopTimer(false);
-            
-            // Ensure minimum valid values are set
-            duration = duration || 1200;
-            weight = weight || 32;
-
-            currentModeData.duration = duration;
-            currentModeData.totalDuration = duration;
-            currentModeData.weight = weight;
-            
-            // FIX: Explicitly set timeRemaining for IDLE state display
-            currentState = 'IDLE';
-            timeRemaining = duration; 
-            
-            // Update button styles
-            [600, 1200, 1800].forEach(d => {
-                const btn = document.getElementById(`duration-${d/60}`);
-                if(btn) btn.classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-            });
-            const selectedDurationBtn = document.getElementById(`duration-${duration/60}`);
-            if(selectedDurationBtn) selectedDurationBtn.classList.add('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-
-            [20, 32].forEach(w => {
-                const btn = document.getElementById(`weight-${w}`);
-                if(btn) btn.classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-            });
-            const selectedWeightBtn = document.getElementById(`weight-${weight}`);
-            if(selectedWeightBtn) selectedWeightBtn.classList.add('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-
-            // Update display
-            const controlBtn = document.getElementById('timer-control-btn');
-            if(controlBtn) controlBtn.disabled = false;
-            updateTimerDisplay();
-            checkReportButtonStatus();
-        }
-
-        // --- 4. Power View ---
-        function renderPower() {
-            stopTimer(false);
-            const defaultProtocol = '80set';
-            const selectedProtocol = currentModeData.protocol || defaultProtocol;
-            
-            // Ensure currentModeData is fully populated with the selected protocol data
-            const current = powerProtocols[selectedProtocol];
-            currentModeData = {
-                protocol: selectedProtocol,
-                workDuration: current.work,
-                restDuration: current.rest,
-                totalCycles: current.cycles,
-                reps: current.reps,
-                weight: current.weight,
-                exerciseName: powerExercise,
-                setsCompleted: currentModeData.setsCompleted || '' // Preserve logged data
-            };
-            totalCycles = currentModeData.totalCycles;
-
-            document.getElementById('subtitle').textContent = 'Power Day: Viking Conditioning';
-            document.getElementById('app').innerHTML = `
-                ${renderBackButton()}
-                <div id="power-content">
-                    <div class="bg-[#1f2937] p-6 rounded-2xl shadow-xl border border-gray-700 mb-10">
-                        <h2 id="power-protocol-title" class="text-2xl font-bold text-gray-300 mb-4 text-center">Protocol: ${current.name}</h2>
-                        
-                        <!-- Protocol Selection -->
-                        <div class="flex flex-wrap justify-center gap-4 mb-6">
-                            ${renderPowerProtocolButton('80set', '15s ON / 15s OFF (80 Set)')}
-                            ${renderPowerProtocolButton('35set', '32s ON / 32s OFF (35 Set)')}
-                        </div>
-
-                        <!-- Protocol Details -->
-                        <div id="power-details" class="text-center mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-                            <p class="text-lg font-bold text-yellow-400 mb-1">Target: ${current.reps} Snatch @ ${current.weight}kg per WORK cycle</p>
-                            <p class="text-sm text-gray-400">Max Effort to complete ${current.cycles} cycles.</p>
-                        </div>
-
-                        <!-- Timer Display -->
-                        ${getTimerDisplayHtml(formatTime(current.work))}
-                        
-                        <!-- Control Button -->
-                        <div class="mt-6 flex justify-center">
-                            <button onclick="startStopTimer()" id="timer-control-btn" disabled
-                                    class="
-                                        px-8 py-3 text-xl font-semibold rounded-xl transition-all duration-300
-                                        bg-gray-600 text-white
-                                        disabled:opacity-50 disabled:cursor-not-allowed
-                                    ">
-                                Start Timer
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Log Area -->
-                    <div class="bg-[#161b22] p-6 rounded-2xl shadow-xl border border-gray-700 mb-8">
-                        <h3 class="text-xl font-bold text-gray-300 mb-4">Log Sets Completed</h3>
-                        <div class="flex justify-center items-center gap-4">
-                             <input 
-                                type="number" 
-                                id="power-sets-completed"
-                                min="0" 
-                                max="${currentModeData.totalCycles}"
-                                value="${currentModeData.setsCompleted}" 
-                                placeholder="Sets Stopped At" 
-                                class="set-input w-full max-w-xs" 
-                                oninput="updateLogData('setsCompleted', this.value)"
-                            >
-                            <span class="text-2xl font-bold text-gray-400">Cycles Completed</span>
-                        </div>
-                    </div>
-
-                    <!-- Report Buttons -->
-                    <div class="flex justify-center">
-                        <button id="report-btn" onclick="generateWorkoutReport()" disabled
-                                class="btn-primary bg-green-700 hover:bg-green-600 disabled:opacity-30 disabled:cursor-not-allowed">
-                            📄 Generate Copy-Paste Report
-                        </button>
-                    </div>
-
-                    <!-- Report Area -->
-                    <div id="report-area" class="mt-8 pt-6 border-t border-gray-700 hidden">
-                        ${getReportAreaHtml()}
-                    </div>
-                </div>
-            `;
-            // Initialize selected styles and timer
-            window.selectPowerProtocol(selectedProtocol);
-        }
-
-        function renderPowerProtocolButton(protocol, name) {
-            // Check against currentModeData.protocol for styling
-            const isSelected = currentModeData.protocol === protocol;
-             return `
-                <button onclick="selectPowerProtocol('${protocol}')"
-                    id="protocol-${protocol}"
-                    class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-500 transition-colors duration-200 ${isSelected ? 'bg-yellow-600 ring-2 ring-yellow-400' : ''}">
-                    ${name}
-                </button>
-            `;
-        }
-        
-        // Helper function to update the power view UI when protocol changes
-        function updatePowerViewUI(protocol, current) {
-            const btn80 = document.getElementById('protocol-80set');
-            const btn35 = document.getElementById('protocol-35set');
-            const detailEl = document.getElementById('power-details');
-            const titleEl = document.getElementById('power-protocol-title');
-            const setsInput = document.getElementById('power-sets-completed');
-
-            // Update button styles
-            if (btn80 && btn35) {
-                btn80.classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-                btn35.classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-                const selectedBtn = document.getElementById(`protocol-${protocol}`);
-                if (selectedBtn) selectedBtn.classList.add('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-            }
-
-            // Update protocol details and title
-            if (detailEl && titleEl) {
-                detailEl.innerHTML = `
-                    <p class="text-lg font-bold text-yellow-400 mb-1">Target: ${current.reps} Snatch @ ${current.weight}kg per WORK cycle</p>
-                    <p class="text-sm text-gray-400">Max Effort to complete ${current.cycles} cycles.</p>
-                `;
-                titleEl.textContent = `Protocol: ${current.name}`;
-            }
-
-            // Update log max attribute
-            if (setsInput) {
-                setsInput.setAttribute('max', current.cycles);
-            }
-        }
-
-
-        window.selectPowerProtocol = function(protocol) {
-            stopTimer(false);
-            
-            const current = powerProtocols[protocol];
-            
-            // 1. Update Mode Data
-            currentModeData.protocol = protocol;
-            currentModeData.workDuration = current.work;
-            currentModeData.restDuration = current.rest;
-            currentModeData.totalCycles = current.cycles;
-            currentModeData.reps = current.reps;
-            currentModeData.weight = current.weight;
-            currentModeData.setsCompleted = ''; // Reset log data on protocol change
-            totalCycles = current.cycles; // Use current.cycles for totalCycles
-            
-            // FIX: Explicitly set timeRemaining for IDLE state display
-            currentState = 'IDLE';
-            timeRemaining = current.work; 
-
-            // 2. Update UI (Only update UI elements, not recursive render)
-            updatePowerViewUI(protocol, current);
-            
-            // 3. Update Timer and Status
-            const controlBtn = document.getElementById('timer-control-btn');
-            if(controlBtn) controlBtn.disabled = false;
-            updateTimerDisplay();
-            checkReportButtonStatus();
-        }
-
-        // --- 5. Mobility View ---
-        function renderMobility() {
-            stopTimer(false);
-            const duration = 600; // 10 minutes per phase (600 seconds)
-            
-            currentModeData = {
-                duration: duration, 
-                totalDuration: duration * 2,
-                exerciseName: 'Mobility Session (Lower & Upper Body)'
-            };
-            currentState = 'IDLE';
-
-            document.getElementById('subtitle').textContent = 'Mobility Day: Lower & Upper Body';
-            document.getElementById('app').innerHTML = `
-                ${renderBackButton()}
-                <div id="mobility-content">
-                    <div class="bg-[#1f2937] p-6 rounded-2xl shadow-xl border border-gray-700 mb-10">
-                        <h2 class="text-2xl font-bold text-gray-300 mb-4 text-center">20 Minute Mobility Flow</h2>
-                        
-                        <div class="text-center mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-                            <p class="text-lg font-bold text-gray-300 mb-1">Phase 1: 10:00 Lower Body Mobility</p>
-                            <p class="text-lg font-bold text-gray-300">Phase 2: 10:00 Upper Body Mobility</p>
-                        </div>
-
-                        <!-- Timer Display -->
-                        <div id="timer-display-card" class="p-6 rounded-xl text-center transition-all duration-500 bg-gray-800 shadow-inner">
-                            <p id="state-display" class="text-2xl font-semibold text-gray-400 mb-2">Ready to Start</p>
-                            <p id="time-display" class="text-7xl md:text-8xl font-extrabold text-blue-400 mb-2">10:00</p>
-                            <p id="set-display" class="text-xl font-medium text-gray-500">Total Time: 20 Minutes</p>
-                        </div>
-                        
-                        <!-- Control Button -->
-                        <div class="mt-6 flex justify-center">
-                            <button onclick="startStopTimer()" id="timer-control-btn"
-                                    class="
-                                        px-8 py-3 text-xl font-semibold rounded-xl transition-all duration-300
-                                        bg-green-600 text-white hover:bg-green-500
-                                    ">
-                                Start Timer
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Report Buttons -->
-                    <div class="flex justify-center">
-                        <button id="report-btn" onclick="generateWorkoutReport()"
-                                class="btn-primary bg-green-700 hover:bg-green-600">
-                            📄 Generate Copy-Paste Report
-                        </button>
-                    </div>
-
-                    <!-- Report Area -->
-                    <div id="report-area" class="mt-8 pt-6 border-t border-gray-700 hidden">
-                        ${getReportAreaHtml()}
-                    </div>
-                </div>
-            `;
-            window.selectMobilityProtocol();
-        }
-
-        window.selectMobilityProtocol = function() {
-            stopTimer(false);
-            // Set the initial time display for mobility to 10:00
-            timeRemaining = currentModeData.duration;
-            currentState = 'IDLE'; // Ensure state is IDLE
-            const controlBtn = document.getElementById('timer-control-btn');
-            if(controlBtn) controlBtn.disabled = false;
-            updateTimerDisplay(); // Initial display
-            checkReportButtonStatus();
-        }
-
-        // --- Shared HTML Components ---
-        function getTimerDisplayHtml(initialTime) {
-            return `
-                <div id="timer-display-card" class="p-6 rounded-xl text-center transition-all duration-500 bg-gray-800 shadow-inner">
-                    <p id="state-display" class="text-2xl font-semibold text-gray-400 mb-2">
-                        Select Protocol to Start
-                    </p>
-                    <p id="time-display" class="text-7xl md:text-8xl font-extrabold text-blue-400 mb-2">
-                        ${initialTime}
-                    </p>
-                    <p id="set-display" class="text-xl font-medium text-gray-500">
-                        Cycle: 0 / 5
-                    </p>
-                </div>
-            `;
-        }
-
-        function getReportAreaHtml() {
-            return `
-                <h2 class="text-3xl font-bold text-gray-300 mb-4 text-center">Workout Summary</h2>
-                
-                <div id="loading-spinner" class="hidden text-center">
-                    <svg class="animate-spin h-8 w-8 text-blue-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <p class="text-gray-400 mt-2">Condensing workout data into a single paragraph...</p>
-                </div>
-                
-                <div id="report-result" class="bg-[#161b22] p-6 rounded-xl text-gray-300 shadow-2xl border border-gray-700 hidden">
-                    <p id="report-text" class="text-lg break-words whitespace-pre-wrap"></p>
-                    <button onclick="copyToClipboard()" class="mt-4 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
-                        Copy Report to Clipboard
-                    </button>
-                    <span id="copy-message" class="ml-4 text-sm text-green-400 hidden">Copied!</span>
-                </div>
-            `;
-        }
-
-
-        // #################################################################
-        // ########################### LLM REPORT ##########################
-        // #################################################################
-
-        window.generateWorkoutReport = async function() {
-            const reportBtn = document.getElementById('report-btn');
-            const spinner = document.getElementById('loading-spinner');
-            const reportArea = document.getElementById('report-area');
-            const resultDiv = document.getElementById('report-result');
-            const reportTextEl = document.getElementById('report-text');
-
-            reportArea.classList.remove('hidden');
-
-            // 1. Compile logged data based on current view
-            let loggedDataString = "";
-            let systemPrompt = "";
-            let foundData = false;
-
-            if (currentView === 'strength') {
-                systemPrompt = "You are a concise workout logger. Your task is to take the raw workout data provided (which consists of a single set per exercise) and condense it into a single, clean paragraph, formatted for easy copy-pasting into a personal fitness log. Do not use bullet points or line breaks. The format should be: [Exercise Name] [Weight]kg x [Reps]R, [Exercise Name] [Weight]kg x [Reps]R, ... . Only output the final paragraph, no pre-amble or extra text.";
-                loggedDataString = "Completed Strength Workout:\n";
-                Object.keys(currentWorkout).forEach(category => {
-                    const exercise = currentWorkout[category];
-                    const singleSet = exercise.sets[0];
-                    // Handle case where weight/reps might be non-numeric empty strings from input
-                    const weight = parseFloat(singleSet.weight) || 0;
-                    const reps = parseFloat(singleSet.reps) || 0;
-                    if (weight > 0 || reps > 0) {
-                        foundData = true;
-                        loggedDataString += `${exercise.name}: ${weight}kg x ${reps} reps.\n`;
-                    }
-                });
-                if (!foundData) {
-                    reportTextEl.textContent = "Please log at least one exercise with non-zero reps or weight before generating a report.";
-                    resultDiv.classList.remove('hidden');
-                    reportBtn.disabled = false;
-                    reportBtn.innerHTML = '📄 Generate Copy-Paste Report';
-                    spinner.classList.add('hidden');
-                    return;
-                }
-            } 
-            else if (currentView === 'endurance') {
-                const rounds = parseFloat(document.getElementById('endurance-rounds')?.value) || 0;
-                if (rounds === 0) {
-                    reportTextEl.textContent = "Please log the total rounds completed before generating a report.";
-                    resultDiv.classList.remove('hidden');
-                    reportBtn.disabled = false;
-                    reportBtn.innerHTML = '📄 Generate Copy-Paste Report';
-                    spinner.classList.add('hidden');
-                    return;
-                }
-                foundData = true;
-                systemPrompt = `You are a concise endurance log reporter. Summarize the following session into a single paragraph. State the exercise, the duration, the weight used, and the total rounds completed. Only output the final paragraph, no pre-amble or extra text.`;
-                // Use default if currentModeData is not fully populated for display (defensive)
-                const durationMinutes = (currentModeData.totalDuration || 1200) / 60;
-                const weight = currentModeData.weight || 32;
-                loggedDataString = `Iron Cardio: ${currentModeData.exerciseName}. Duration: ${durationMinutes} minutes AMRAP. Weight: ${weight}kg. Total Rounds Completed: ${rounds}.`;
-            }
-            else if (currentView === 'power') {
-                const setsCompleted = parseFloat(document.getElementById('power-sets-completed')?.value) || 0;
-                 if (setsCompleted === 0) {
-                    reportTextEl.textContent = "Please log the number of cycles you completed before generating a report.";
-                    resultDiv.classList.remove('hidden');
-                    reportBtn.disabled = false;
-                    reportBtn.innerHTML = '📄 Generate Copy-Paste Report';
-                    spinner.classList.add('hidden');
-                    return;
-                }
-                foundData = true;
-                const protocolDetails = currentModeData.protocol === '80set' ? '15s ON / 15s OFF (Max 80 Cycles)' : '32s ON / 32s OFF (Max 35 Cycles)';
-                systemPrompt = `You are an aggressive conditioning log reporter. Summarize the following session into a single paragraph. State the exercise, the protocol used, the target reps/weight, and the number of cycles completed. Focus on the maximum effort. Only output the final paragraph, no pre-amble or extra text.`;
-                loggedDataString = `Viking Conditioning: ${currentModeData.exerciseName} at ${currentModeData.weight}kg. Protocol: ${protocolDetails}. Target: ${currentModeData.reps} reps/work interval. Cycles completed before failure: ${setsCompleted}.`;
-            }
-            else if (currentView === 'mobility') {
-                foundData = true;
-                systemPrompt = "You are a wellness reporter. Write a clean, single sentence summarizing the 20-minute mobility session. The sentence should state the total time and the two main focus areas. Only output the final sentence, no pre-amble or extra text.";
-                loggedDataString = `Mobility Session: 20 minutes total. 10 minutes focused on Lower Body Mobility and 10 minutes focused on Upper Body Mobility.`;
-            }
-
-            // 2. Prepare UI for loading
-            reportBtn.disabled = true;
-            reportBtn.innerHTML = 'Generating Report...';
-            spinner.classList.remove('hidden');
-            resultDiv.classList.add('hidden');
-            reportTextEl.textContent = '';
-            document.getElementById('copy-message').classList.add('hidden');
-
-            const userQuery = `Condense the following data into a single paragraph summary: \n\n${loggedDataString}`;
-            
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-
-            const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-            };
-
-            try {
-                const response = await fetchWithBackoff(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const result = await response.json();
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-                if (text) {
-                    reportTextEl.textContent = text.trim();
-                    resultDiv.classList.remove('hidden');
-                } else {
-                    reportTextEl.textContent = `Error: Could not retrieve report. (Raw data: ${loggedDataString.replace(/\n/g, ' | ')})`;
-                    resultDiv.classList.remove('hidden');
-                }
-
-            } catch (error) {
-                console.error("Gemini API call failed:", error);
-                reportTextEl.textContent = `An unexpected error occurred: ${error.message}. (Raw data: ${loggedDataString.replace(/\n/g, ' | ')})`;
-                resultDiv.classList.remove('hidden');
-            } finally {
-                reportBtn.disabled = false;
-                reportBtn.innerHTML = '📄 Generate Copy-Paste Report';
-                spinner.classList.add('hidden');
-                checkReportButtonStatus();
-            }
-        }
-        
-        // --- Clipboard Function ---
-        window.copyToClipboard = function() {
-            const textToCopy = document.getElementById('report-text').textContent;
-            const textArea = document.createElement("textarea");
-            textArea.value = textToCopy;
-            document.body.appendChild(textArea);
-            textArea.select();
-            
-            try {
-                // document.execCommand('copy') is the standard fallback for iframes
-                document.execCommand('copy'); 
-                const copyMessage = document.getElementById('copy-message');
-                copyMessage.classList.remove('hidden');
-                setTimeout(() => copyMessage.classList.add('hidden'), 2000);
-            } catch (err) {
-                console.error('Copy failed:', err);
-            }
-            document.body.removeChild(textArea);
-        }
-        
-        // --- Navigation and Initialization ---
-        window.navigateTo = function(view, data = {}) {
-            currentView = view;
-            currentModeData = data;
-            stopTimer(false); // Stop any running timer when navigating
-            renderApp();
-        }
-
-        function renderApp() {
-            // Clear report visibility when navigating
-            document.getElementById('report-area')?.classList.add('hidden');
-            document.getElementById('report-result')?.classList.add('hidden');
-
-            // Render the correct view
-            switch (currentView) {
-                case 'strength':
-                    renderStrength();
-                    break;
-                case 'endurance':
-                    renderEndurance();
-                    break;
-                case 'power':
-                    renderPower();
-                    break;
-                case 'mobility':
-                    renderMobility();
-                    break;
-                case 'home':
-                default:
-                    renderHome();
-                    break;
-            }
-        }
-
-        // Initialize on load
-        window.onload = async function() {
-            await initFirebase();
-            renderApp(); // Start on the Homepage
-        };
-    </script>
-</body>
-</html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Random Strength Workout & Tracker</title>
-    <!-- Load Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Use Inter font -->
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            min-height: 100vh;
-            display: flex;
-            align-items: flex-start; /* Align to top to give space for the report area */
-            justify-content: center;
-            background-color: #0d1117; /* Dark background */
-        }
-        /* Custom scrollbar for aesthetics */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #161b22;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #30363d;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #444c56;
-        }
-        .set-input {
-            /* Uses relative width for responsiveness on all screen sizes */
-            width: 45%; 
+        .input-field-center {
             text-align: center;
-            padding: 8px;
-            border: 1px solid #374151;
-            background-color: #1f2937;
-            color: #d1d5db;
-            border-radius: 8px;
         }
     </style>
 </head>
@@ -1440,56 +44,39 @@
 
     <div id="app" class="w-full max-w-4xl p-4 md:p-8 mt-8 pb-16">
         <header class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-extrabold text-blue-400 mb-2 tracking-tight">The Strength Logbook (Single Set)</h1>
-            <p class="text-lg text-gray-400">Generate, track, and log your full-body strength workout with a single working set per lift.</p>
+            <h1 class="text-4xl md:text-5xl font-extrabold text-green-400 mb-2 tracking-tight">SPEMs Daily Tracker</h1>
+            <p id="date-display" class="text-lg text-gray-400 mb-4"></p>
+            
+            <!-- Focus Override Selector -->
+            <div class="mt-4 mb-6">
+                <label for="focus-selector" class="text-gray-400 mr-3 text-lg font-medium">Override Workout Focus:</label>
+                <select id="focus-selector" onchange="changeDailyFocus(this.value)" class="input-field px-4 py-2 text-md font-semibold bg-[#161b22] text-white">
+                    <!-- Options populated by JS -->
+                </select>
+            </div>
+            
+            <h2 id="focus-display" class="text-3xl font-bold text-white uppercase tracking-wider p-2 rounded-lg inline-block"></h2>
         </header>
 
-        <!-- Click Counter & Reset -->
-        <div class="flex flex-wrap justify-center gap-4 mb-10">
-            <button id="click-counter" onclick="incrementCounter()"
-                    class="
-                        flex items-center space-x-2 px-6 py-3 text-xl font-bold rounded-xl
-                        bg-gray-800 text-yellow-400 shadow-2xl shadow-gray-900/50
-                        hover:bg-gray-700 active:scale-95 transition-all duration-150
-                    ">
-                <span>Total Clicks:</span>
-                <span id="counter-display" class="w-8 text-center">0</span>
-            </button>
-            <button onclick="resetCounter()"
-                    class="
-                        px-6 py-3 text-xl font-bold rounded-xl bg-red-600 text-white
-                        hover:bg-red-500 active:scale-95 transition-all duration-150
-                    ">
-                Reset Counter
-            </button>
+        <!-- Dynamic Content Area -->
+        <div id="protocol-container" class="bg-[#1f2937] p-6 rounded-2xl shadow-xl border border-gray-700 mb-10">
+            <p class="text-gray-500 text-center">Loading daily protocol...</p>
         </div>
 
         <!-- Timer Section -->
-        <div class="bg-[#1f2937] p-6 rounded-2xl shadow-xl border border-gray-700 mb-10">
-            <h2 class="text-2xl font-bold text-gray-300 mb-4 text-center">Interval Timer (5 Sets)</h2>
+        <div id="timer-section" class="bg-[#1f2937] p-6 rounded-2xl shadow-xl border border-gray-700 mb-10 hidden">
+            <h3 class="text-2xl font-bold text-gray-300 mb-4 text-center">Workout Timer</h3>
             
-            <!-- Protocol Selection -->
-            <div class="flex justify-center space-x-4 mb-6">
-                <button onclick="selectProtocol(300, 60)" id="protocol-5-1"
-                        class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
-                    5 min ON / 1 min OFF
-                </button>
-                <button onclick="selectProtocol(180, 60)" id="protocol-3-1"
-                        class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
-                    3 min ON / 1 min OFF
-                </button>
-            </div>
-
             <!-- Timer Display -->
             <div id="timer-display-card" class="p-6 rounded-xl text-center transition-all duration-500 bg-gray-800 shadow-inner">
                 <p id="state-display" class="text-2xl font-semibold text-gray-400 mb-2">
-                    Select a Protocol to Start
+                    Ready to Start
                 </p>
                 <p id="time-display" class="text-7xl md:text-8xl font-extrabold text-blue-400 mb-2">
-                    --:--
+                    00:00
                 </p>
                 <p id="set-display" class="text-xl font-medium text-gray-500">
-                    Set: 0 / 5
+                    Sets: 0 / 0
                 </p>
             </div>
             
@@ -1505,23 +92,14 @@
                 </button>
             </div>
         </div>
-
-        <!-- Workout Grid (Responsive: 1 column on mobile, 2 on tablet, 3 on desktop) -->
-        <div id="workout-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <!-- Content will be injected here -->
+        
+        <!-- Tracking Area -->
+        <div id="tracking-container" class="mt-8 pt-6">
+            <!-- Dynamic tracking inputs will be rendered here -->
         </div>
 
-        <!-- Action Buttons (Responsive: stacks on mobile, side-by-side on tablet/desktop) -->
-        <div class="flex flex-col md:flex-row justify-center space-y-4 md:space-y-0 md:space-x-4 mb-10">
-            <button onclick="generateWorkout()"
-                    class="
-                        px-8 py-4 text-xl font-semibold rounded-xl transition-all duration-300
-                        bg-blue-600 text-white shadow-lg shadow-blue-500/50
-                        hover:bg-blue-500 hover:shadow-xl hover:shadow-blue-400/50
-                        focus:outline-none focus:ring-4 focus:ring-blue-500/70 active:scale-95
-                    ">
-                Generate New Workout
-            </button>
+        <!-- Action Buttons -->
+        <div class="flex justify-center mt-10">
             <button id="report-btn" onclick="generateWorkoutReport()" disabled
                     class="
                         px-8 py-4 text-xl font-semibold rounded-xl transition-all duration-300
@@ -1542,7 +120,7 @@
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <p class="text-gray-400 mt-2">Condensing workout data into a single paragraph...</p>
+                <p class="text-gray-400 mt-2">Condensing workout data...</p>
             </div>
             
             <div id="report-result" class="bg-[#161b22] p-6 rounded-xl text-gray-300 shadow-2xl border border-gray-700 hidden">
@@ -1559,11 +137,12 @@
     <script type="module">
         // --- Mandatory Firebase & API Key Setup (Boilerplate for the environment) ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
         const apiKey = ""; // Leave as empty string for the Canvas environment
 
         let app;
@@ -1571,154 +150,265 @@
         let auth;
         let userId = 'anon';
         let isAuthReady = false;
-        let currentWorkout = {}; 
         
-        // --- Counter Variables and Functions ---
-        let clickCount = 0; 
-
-        window.incrementCounter = function() {
-            clickCount++;
-            document.getElementById('counter-display').textContent = clickCount;
-        }
-        
-        window.resetCounter = function() {
-            clickCount = 0;
-            document.getElementById('counter-display').textContent = clickCount;
-        }
+        // --- Global State Variables ---
+        let dailyFocus = {};
+        let currentWorkoutFocus = ''; // Holds the focus selected by the user/defaulted by the day
+        let currentProtocol = null; // Stores the selected Endurance/Power/Mobility options
+        let trackingData = {}; // Stores user input (rounds, weight, etc.)
         
         // --- Timer Variables ---
         let timerInterval = null;
         let isTimerRunning = false;
-        let currentSet = 0; // 0 for Prep, 1 to 5 for Work/Rest cycles
+        let currentSet = 0; // 0 for Prep, then 1 to MaxSets, or total duration for AMRAP/Mobility
         let currentState = 'IDLE'; // 'IDLE', 'PREP', 'WORK', 'REST', 'FINISHED'
         let timeRemaining = 0;
         let workDuration = 0;
         let restDuration = 0;
-        const totalSets = 5;
-        const prepDuration = 30;
+        let totalSets = 0;
+        const prepDuration = 10; 
 
-        // --- Firebase Init ---
-        async function initFirebase() {
-            try {
-                if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-                    console.warn("Firebase config not found or is empty. Running anonymously.");
+        // --- Tone.js/Audio Variables ---
+        let timerSynth = null;
+        let isAudioInitialized = false;
+        
+        // --- SPEMs Definitions ---
+        const dailySchedule = {
+            Monday: 'Endurance',
+            Tuesday: 'Strength',
+            Wednesday: 'Power',
+            Thursday: 'Strength',
+            Friday: 'Endurance',
+            Saturday: 'Strength',
+            Sunday: 'Mobility'
+        };
+
+        const protocols = {
+            Endurance: {
+                name: "Iron Cardio",
+                exercise: "Clean + Press + Squat + Snatch (per side)",
+                timerOptions: [
+                    { minutes: 10, label: "10 Minutes" },
+                    { minutes: 20, label: "20 Minutes" },
+                    { minutes: 30, label: "30 Minutes" }
+                ],
+                weightOptions: [20, 32],
+                trackingType: 'rounds'
+            },
+            Power: {
+                name: "Viking Conditioning",
+                exercise: "Snatch (Max Reps)",
+                variants: {
+                    '80_set': { label: '80 Set (15:15)', target_reps: 7, work: 15, rest: 15, total_sets: 80, trackingType: 'sets_reps' },
+                    '35_set': { label: '35 Set (32:32)', target_reps: 17, work: 32, rest: 32, total_sets: 35, trackingType: 'sets_reps' }
                 }
-
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                userId = auth.currentUser?.uid || 'anon-user-' + crypto.randomUUID();
-                isAuthReady = true;
-                console.log("Firebase initialized. User ID:", userId);
-            } catch (error) {
-                console.error("Error during Firebase initialization or sign-in:", error);
+            },
+            // The Strength definition is preserved as requested
+            Strength: { 
+                name: "Max Effort Circuit",
+                exercise: "5 Sets of 3 Reps",
+                lifts: {
+                    Squat: ['KB Goblet Squat', 'SB Shoulder Squat'],
+                    Hinge: ['KB Double DL', 'SB DL'],
+                    Push: ['SB Floor Press', 'KB OHP'],
+                    Pull: ['SB Row', 'Pull Up']
+                },
+                trackingType: 'weight_reps'
+            },
+            Mobility: {
+                name: "Active Recovery",
+                duration: 15, // 15 minutes
+                exercise: "Slow Controlled Movement & Active Stretching",
+                trackingType: 'duration'
             }
+        };
+
+        // --- Utility Functions ---
+
+        /** Determines today's focus and formats the date. */
+        function getCurrentDayFocus() {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const today = new Date();
+            const dayName = days[today.getDay()];
+            const focus = dailySchedule[dayName];
+            
+            return {
+                dayName,
+                focus,
+                date: today.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+            };
         }
-        
-        // --- Timer Utility Functions ---
-        
+
         /** Formats seconds into MM:SS string. */
         function formatTime(totalSeconds) {
             const minutes = Math.floor(totalSeconds / 60);
             const seconds = totalSeconds % 60;
             return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
-        
-        /** Updates the visual display elements of the timer. */
+
+        /** Simple utility to get a random element from an array. */
+        function getRandomItem(array) {
+            return array[Math.floor(Math.random() * array.length)];
+        }
+
+        // --- Audio Functions (Tone.js) ---
+
+        function initAudio() {
+            if (isAudioInitialized) return;
+            try {
+                Tone.start(); 
+                timerSynth = new Tone.Synth({
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 }
+                }).toDestination();
+                isAudioInitialized = true;
+            } catch (e) {
+                console.error("Failed to initialize Tone.js", e);
+            }
+        }
+
+        function playWorkSound() {
+            if (timerSynth) { timerSynth.triggerAttackRelease("G4", "8n"); timerSynth.triggerAttackRelease("C5", "8n", Tone.now() + 0.15); }
+        }
+
+        function playRestSound() {
+            if (timerSynth) { timerSynth.triggerAttackRelease("C3", "4n"); }
+        }
+
+        function playWarningBeep() {
+            if (timerSynth) { timerSynth.triggerAttackRelease("E4", "16n"); }
+        }
+
+        function playFinishSound() {
+            if (timerSynth) { 
+                timerSynth.triggerAttackRelease("C4", "8n"); 
+                timerSynth.triggerAttackRelease("E4", "8n", Tone.now() + 0.15);
+                timerSynth.triggerAttackRelease("G4", "8n", Tone.now() + 0.3);
+                timerSynth.triggerAttackRelease("C5", "4n", Tone.now() + 0.5);
+            }
+        }
+
+        // --- Timer Logic ---
+
         function updateTimerDisplay() {
             const timeDisplay = document.getElementById('time-display');
             const stateDisplay = document.getElementById('state-display');
             const setDisplay = document.getElementById('set-display');
             const card = document.getElementById('timer-display-card');
-            const controlBtn = document.getElementById('timer-control-btn');
-
-            timeDisplay.textContent = formatTime(timeRemaining);
-            setDisplay.textContent = `Set: ${currentSet} / ${totalSets}`;
             
-            // Update state text and color
+            timeDisplay.textContent = formatTime(timeRemaining);
+            
             let stateText = '';
             let colorClass = 'text-blue-400';
-            
             card.className = 'p-6 rounded-xl text-center transition-all duration-500 shadow-inner';
             
+            // Use currentWorkoutFocus for timer logic display
+            if (currentWorkoutFocus === 'Endurance' || currentWorkoutFocus === 'Mobility') {
+                setDisplay.textContent = currentState === 'WORK' ? 'Time Remaining' : 'Ready';
+            } else if (currentProtocol && currentProtocol.trackingType === 'sets_reps') {
+                setDisplay.textContent = `Set: ${currentSet} / ${totalSets}`;
+            } else {
+                setDisplay.textContent = '--';
+            }
+
             switch (currentState) {
                 case 'IDLE':
-                    stateText = 'Select a Protocol to Start';
+                    stateText = 'SELECT & GET READY';
                     colorClass = 'text-gray-400';
                     card.classList.add('bg-gray-800');
-                    controlBtn.textContent = 'Start Timer';
                     break;
                 case 'PREP':
-                    stateText = 'GET READY (Prep)';
+                    stateText = 'GET READY';
                     colorClass = 'text-yellow-400';
                     card.classList.add('bg-yellow-800/30');
-                    controlBtn.textContent = 'Pause Timer';
                     break;
                 case 'WORK':
-                    stateText = 'WORK (Set ' + currentSet + ')';
+                    stateText = currentWorkoutFocus === 'Endurance' || currentWorkoutFocus === 'Mobility' ? 'WORK (AMRAP/Movement)' : 'WORK SET';
                     colorClass = 'text-green-400';
                     card.classList.add('bg-green-800/30');
-                    controlBtn.textContent = 'Pause Timer';
                     break;
                 case 'REST':
                     stateText = 'REST (Break)';
                     colorClass = 'text-red-400';
                     card.classList.add('bg-red-800/30');
-                    controlBtn.textContent = 'Pause Timer';
                     break;
                 case 'FINISHED':
                     stateText = 'WORKOUT COMPLETE!';
                     colorClass = 'text-blue-400';
                     card.classList.add('bg-blue-800/30');
-                    controlBtn.textContent = 'Start Over';
                     break;
             }
             stateDisplay.textContent = stateText;
             timeDisplay.className = `text-7xl md:text-8xl font-extrabold mb-2 ${colorClass}`;
         }
         
-        /** Main countdown logic, called every second. */
         function countdown() {
             if (timeRemaining > 0) {
                 timeRemaining--;
+                
+                // Play warning beep for last 3 seconds
+                if (timeRemaining > 0 && timeRemaining <= 3) {
+                    playWarningBeep();
+                }
+
                 updateTimerDisplay();
-                return;
+                
+                // If the protocol is AMRAP (Endurance/Mobility), we just count down to zero and finish.
+                if (currentWorkoutFocus === 'Endurance' || currentWorkoutFocus === 'Mobility') {
+                    if (timeRemaining === 0) {
+                         // Fall through to the next switch case block to handle FINISHED state
+                    } else {
+                        return; // Continue countdown
+                    }
+                } else {
+                    // Power (Set-based)
+                    return; // Continue countdown
+                }
             }
             
             // Time is zero, transition state
             switch (currentState) {
                 case 'PREP':
+                    // Transition: PREP -> WORK (Set 1)
                     currentSet = 1;
                     currentState = 'WORK';
                     timeRemaining = workDuration;
+                    playWorkSound();
                     break;
                 case 'WORK':
-                    if (currentSet < totalSets) {
-                        currentState = 'REST';
-                        timeRemaining = restDuration;
-                    } else {
-                        // Last set finished
+                    if (currentWorkoutFocus === 'Endurance' || currentWorkoutFocus === 'Mobility') {
+                        // End of AMRAP/Mobility time
                         clearInterval(timerInterval);
                         isTimerRunning = false;
                         currentState = 'FINISHED';
                         timeRemaining = 0;
+                        playFinishSound();
+                    } 
+                    else if (currentProtocol.trackingType === 'sets_reps') {
+                        // Power: WORK -> REST
+                        if (currentSet < totalSets) {
+                            currentState = 'REST';
+                            timeRemaining = restDuration;
+                            playRestSound();
+                        } else {
+                            // Last set finished
+                            clearInterval(timerInterval);
+                            isTimerRunning = false;
+                            currentState = 'FINISHED';
+                            timeRemaining = 0;
+                            playFinishSound();
+                        }
                     }
                     break;
                 case 'REST':
+                    // Power: REST -> WORK
                     currentSet++;
                     currentState = 'WORK';
                     timeRemaining = workDuration;
+                    playWorkSound();
                     break;
                 case 'IDLE':
                 case 'FINISHED':
-                    // Should not happen when timer is running
                     clearInterval(timerInterval);
                     isTimerRunning = false;
                     break;
@@ -1728,43 +418,18 @@
 
         // --- Timer Control Functions ---
         
-        /** Selects a workout protocol and resets the timer state. */
-        window.selectProtocol = function(workTime, restTime) {
-            // Stop any running timer first
-            if (isTimerRunning) {
-                clearInterval(timerInterval);
-                isTimerRunning = false;
+        window.startStopTimer = function() {
+            if (!currentProtocol) return; // Must have a protocol selected
+
+            if (!isAudioInitialized) {
+                initAudio();
             }
 
-            // Reset state
-            workDuration = workTime;
-            restDuration = restTime;
-            currentSet = 0;
-            currentState = 'IDLE';
-            timeRemaining = workDuration; // Just for initial display (5:00 or 3:00)
-            
-            // Update button styles to show selection
-            document.getElementById('protocol-5-1').classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-            document.getElementById('protocol-3-1').classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-            
-            const selectedBtnId = (workTime === 300) ? 'protocol-5-1' : 'protocol-3-1';
-            document.getElementById(selectedBtnId).classList.add('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-
-            // Enable control button and update display
-            document.getElementById('timer-control-btn').disabled = false;
-            document.getElementById('time-display').textContent = formatTime(workDuration);
-            document.getElementById('set-display').textContent = `Set: 0 / ${totalSets} (Ready)`;
-            document.getElementById('state-display').textContent = `Ready: ${formatTime(workDuration/60)}M Work / ${formatTime(restDuration/60)}M Rest`;
-            document.getElementById('timer-control-btn').textContent = 'Start Timer';
-        }
-
-        /** Starts, pauses, or restarts the timer. */
-        window.startStopTimer = function() {
             const controlBtn = document.getElementById('timer-control-btn');
 
             if (currentState === 'FINISHED') {
-                // Restart logic
-                selectProtocol(workDuration, restDuration); // Re-selects the last protocol
+                // Restart logic - re-selects the last protocol
+                selectProtocol(currentProtocol.id, currentProtocol.weight || null); 
                 return;
             }
 
@@ -1789,169 +454,360 @@
             }
         }
 
+        // --- Tracking and Rendering Functions ---
 
-        // --- Utility: Exponential Backoff for API Calls ---
-        async function fetchWithBackoff(url, options, maxRetries = 5) {
-            for (let i = 0; i < maxRetries; i++) {
-                try {
-                    const response = await fetch(url, options);
-                    if (response.ok) {
-                        return response;
-                    }
-                    if (i === maxRetries - 1) throw new Error(`Fetch failed after ${maxRetries} attempts with status ${response.status}.`);
-                } catch (error) {
-                    if (i === maxRetries - 1) {
-                        throw error;
-                    }
-                }
-                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-
-        // --- Utility Function: Get a random element from an array ---
-        function getRandomExercise(array) {
-            const randomIndex = Math.floor(Math.random() * array.length);
-            return array[randomIndex];
-        }
-
-        // --- Utility Function: Get icon SVG based on category ---
-        function getIconPath(category) {
-            switch (category) {
-                case 'Squat': return 'M3 14H6V21H18V14H21M13 3H11V6H13M12 21V16M8 12V14H16V12';
-                case 'Hinge': return 'M5 19V17H19V19M12 3V17M17 17H7V15H17';
-                case 'Push': return 'M21 8V16M3 8V16M16 12H8M16 8H8V16H16Z';
-                case 'Pull': return 'M4 6H20M12 6V18M15 15L12 18L9 15';
-                case 'Core': return 'M12 2C6.477 2 2 6.477 2 12C2 17.523 6.477 22 12 22C17.523 22 22 17.523 22 12C22 6.477 17.523 2 12 2ZM12 4V20M12 4C14.21 4 16 5.79 16 8V16C16 18.21 14.21 20 12 20';
-                default: return 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14l-4-4 4-4 4 4-4 4z';
-            }
+        /** Updates tracking data based on input field changes. */
+        window.updateTrackingData = function(key, value) {
+            trackingData[key] = value;
+            checkReportButtonStatus();
         }
         
-        // --- Core Data: The Exercise Catalog ---
-        const exercises = {
-            Squat: ['SB Goblet Squat', 'SB Shoulder Squat', 'SB Goblet Lunge', 'SB Shoulder Lunge', 'KB Goblet Squat', 'KB Shoulder Squat', 'KB Goblet Lunge', 'KB Shoulder Lunge', 'KB Split Squat', 'KB Step Up', 'KB BSS'],
-            Hinge: ['Hinge', 'SB Clean', 'SB Hip Thrust', 'SB Hip Bridge', 'KB Single Swing', 'KB Double Swing', 'KB Double DL', 'KB Single RDL', 'KB Kneeling Squat', 'SB DL', 'SB Single RDL', 'Sumo Hinge'],
-            Push: ['SB Floor Press', 'SB Incline Press', 'SB OHP', 'KB OHP', 'KB Incline Press', 'Normal Push Up', 'Decline Push Up', 'Incline Push Up', 'Ring Push Up', 'Ring Dip', 'One Arm Push Up'],
-            Pull: ['SB Row', 'KB Row', 'Pull Up', 'Chin Up', 'Ring Row'],
-            Core: ['KB Sit Up', 'KB Get Up', 'SB Get Up', 'SB Goblet Carry', 'SB Shoulder Carry', 'KB Goblet Carry', 'KB Shoulder Carry', 'KB WindMill', 'KB Around the World', 'KB Marches', 'SB Sled Work', 'Roll Over']
-        };
-
-        // --- Workout Tracking Functions ---
-
-        /**
-         * Renders the single set input row for an exercise.
-         */
-        function renderSingleSetHtml(category, set) {
-            // Note: Placeholder is set to 'Weight' as the unit (kg) is implicit.
-            return `
-                <div class="flex justify-between items-center text-sm text-gray-300 bg-gray-700/30 p-2 rounded-lg">
-                    <input 
-                        type="number" 
-                        min="0" 
-                        value="${set.weight}" 
-                        placeholder="Weight" 
-                        class="set-input" 
-                        oninput="updateSingleSet('${category}', 'weight', this.value)"
-                    >
-                    <span class="text-gray-400 font-bold text-lg">x</span>
-                    <input 
-                        type="number" 
-                        min="0" 
-                        value="${set.reps}" 
-                        placeholder="Reps"
-                        class="set-input" 
-                        oninput="updateSingleSet('${category}', 'reps', this.value)"
-                    >
-                </div>
-            `;
-        }
-
-        /**
-         * Updates the weight or reps for the single set (always at index 0).
-         */
-        window.updateSingleSet = function(category, field, value) {
-            const setIndex = 0; 
-            if (currentWorkout[category] && currentWorkout[category].sets && currentWorkout[category].sets[setIndex]) {
-                const numValue = value; 
-                currentWorkout[category].sets[setIndex][field] = numValue;
+        /** Renders the input fields based on the current protocol. */
+        function renderTrackingArea() {
+            const container = document.getElementById('tracking-container');
+            if (!currentProtocol) {
+                container.innerHTML = `<p class="text-center text-gray-500">Please select a workout option above to log your progress.</p>`;
+                return;
             }
-            checkReportButtonStatus(); 
-        }
-        
-        /**
-         * Checks if any logged exercise has non-zero weight or reps and updates the report button state.
-         */
-        function checkReportButtonStatus() {
-            const reportBtn = document.getElementById('report-btn');
-            const hasData = Object.values(currentWorkout).some(exercise => {
-                const set = exercise.sets[0]; 
-                const weight = parseFloat(set.weight) || 0;
-                const reps = parseFloat(set.reps) || 0;
-                return set && (weight > 0 || reps > 0);
-            });
-            reportBtn.disabled = !hasData;
-        }
 
-        // --- Main Logic: Generate and Render Workout ---
-        window.generateWorkout = function() {
-            const categories = Object.keys(exercises);
             let htmlContent = '';
-            currentWorkout = {}; 
-            
-            document.getElementById('report-area').classList.add('hidden');
-            document.getElementById('report-result').classList.add('hidden');
+            container.classList.remove('grid', 'grid-cols-1', 'md:grid-cols-2', 'lg:grid-cols-4');
+            trackingData = {}; // Reset tracking data
 
-            categories.forEach(category => {
-                const availableExercises = exercises[category];
-                const selectedExercise = getRandomExercise(availableExercises);
-                const iconPath = getIconPath(category);
-                
-                const singleSet = { weight: '', reps: '' }; 
-                currentWorkout[category] = {
-                    name: selectedExercise,
-                    sets: [singleSet]
-                };
-
-                htmlContent += `
-                    <div class="
-                        bg-[#161b22] p-6 rounded-2xl shadow-xl transition-transform duration-200 hover:shadow-blue-500/20
-                        border border-gray-700 flex flex-col justify-between
-                    ">
-                        <!-- Card Header (Category) -->
-                        <div class="flex items-center mb-4">
-                            <div class="p-3 bg-blue-600 rounded-full mr-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white">
-                                    <path d="${iconPath}" />
-                                </svg>
-                            </div>
-                            <h2 class="text-2xl font-bold text-gray-200">${category}</h2>
+            if (currentProtocol.trackingType === 'rounds') {
+                // Endurance Tracking (AMRAP: Rounds and Reps)
+                htmlContent = `
+                    <h3 class="text-2xl font-bold text-gray-300 mb-4 text-center">Log Your Iron Cardio Performance</h3>
+                    <div class="flex flex-col md:flex-row gap-4 items-center justify-center">
+                        <div class="flex flex-col w-full md:w-1/3">
+                            <label for="totalRounds" class="text-gray-400 mb-1">Total Rounds Completed:</label>
+                            <input id="totalRounds" type="number" min="0" placeholder="Rounds" class="input-field input-field-center text-2xl font-bold" oninput="updateTrackingData('rounds', this.value)">
                         </div>
-
-                        <!-- Exercise Result -->
-                        <div class="min-h-[30px] flex items-center mb-4">
-                            <p class="text-2xl font-extrabold text-blue-300 tracking-tight">
-                                ${selectedExercise}
-                            </p>
-                        </div>
-                        
-                        <!-- Single Set Tracker -->
-                        <div id="sets-container-${category}" class="pb-3 border-t border-gray-600 pt-3">
-                            ${renderSingleSetHtml(category, singleSet)}
+                        <div class="flex flex-col w-full md:w-1/3">
+                            <label for="finalReps" class="text-gray-400 mb-1">Final Reps (in last incomplete round):</label>
+                            <input id="finalReps" type="number" min="0" placeholder="Reps" class="input-field input-field-center text-2xl font-bold" oninput="updateTrackingData('reps', this.value)">
                         </div>
                     </div>
                 `;
-            });
+            } else if (currentProtocol.trackingType === 'sets_reps') {
+                // Power Tracking (Total Reps/Sets Completed)
+                htmlContent = `
+                    <h3 class="text-2xl font-bold text-gray-300 mb-4 text-center">Log Your Viking Conditioning Set</h3>
+                    <div class="flex flex-col md:flex-row gap-4 items-center justify-center">
+                        <div class="flex flex-col w-full md:w-1/3">
+                            <label for="setsCompleted" class="text-gray-400 mb-1">Sets Completed (Target: ${currentProtocol.total_sets}):</label>
+                            <input id="setsCompleted" type="number" min="0" max="${currentProtocol.total_sets}" placeholder="Sets" class="input-field input-field-center text-2xl font-bold" oninput="updateTrackingData('setsCompleted', this.value)">
+                        </div>
+                        <div class="flex flex-col w-full md:w-1/3">
+                            <label for="totalReps" class="text-gray-400 mb-1">Total Reps Logged (e.g. 7 * setsCompleted):</label>
+                            <input id="totalReps" type="number" min="0" placeholder="Total Reps" class="input-field input-field-center text-2xl font-bold" oninput="updateTrackingData('totalReps', this.value)">
+                        </div>
+                    </div>
+                `;
+            } else if (currentProtocol.trackingType === 'weight_reps') {
+                // Strength Tracking (Max Weight/Reps for 5x3 circuit)
+                const lifts = protocols.Strength.lifts;
+                container.classList.add('grid', 'grid-cols-1', 'md:grid-cols-2', 'lg:grid-cols-4', 'gap-6');
 
-            document.getElementById('workout-grid').innerHTML = htmlContent;
+                htmlContent += `<h3 class="text-2xl font-bold text-gray-300 mb-4 md:col-span-2 lg:col-span-4 text-center">Log Your 5x3 Max Effort Circuit (Log Max Weight achieved for 3 Reps)</h3>`;
+
+                Object.keys(lifts).forEach(category => {
+                    const exercise = getRandomItem(lifts[category]);
+                    trackingData[category] = { exercise: exercise, weight: '', reps: 3 }; // Initialize tracking data
+
+                    htmlContent += `
+                        <div class="bg-[#161b22] p-4 rounded-xl shadow-lg border border-gray-700">
+                            <p class="text-xl font-bold text-blue-400 mb-2">${category}:</p>
+                            <p class="text-md text-gray-300 mb-3">${exercise}</p>
+                            <div class="flex gap-2">
+                                <input id="${category}Weight" type="number" min="0" placeholder="Weight (kg)" class="input-field w-2/3 input-field-center" oninput="updateStrengthLog('${category}', 'weight', this.value)">
+                                <input id="${category}Reps" type="number" min="0" value="3" class="input-field w-1/3 text-gray-500 input-field-center" readonly>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else if (currentProtocol.trackingType === 'duration') {
+                // Mobility Tracking
+                htmlContent = `
+                    <h3 class="text-2xl font-bold text-gray-300 mb-4 text-center">Log Your Mobility Session</h3>
+                    <p class="text-center text-gray-400">The timer has completed ${currentProtocol.duration} minutes of mobility work (${protocols.Mobility.exercise}).</p>
+                    <div class="flex justify-center mt-4">
+                        <textarea id="mobilityNotes" placeholder="Optional: Enter notes on what movements you focused on (e.g., Cat-Cow, T-Spine rotations)." class="input-field w-full max-w-lg h-24" oninput="updateTrackingData('notes', this.value)"></textarea>
+                    </div>
+                `;
+            }
+            container.innerHTML = htmlContent;
             checkReportButtonStatus();
         }
 
+        window.updateStrengthLog = function(category, field, value) {
+            if (trackingData[category]) {
+                trackingData[category][field] = value;
+            }
+            checkReportButtonStatus();
+        }
 
-        // --- LLM Integration: Generate Workout Report ---
+        function checkReportButtonStatus() {
+            const reportBtn = document.getElementById('report-btn');
+            reportBtn.disabled = !currentProtocol;
+        }
 
-        /**
-         * Generates a copy-paste summary of the completed workout using the Gemini API.
-         */
+        // --- Protocol Selection Handlers (Initial UI) ---
+
+        /** Updates the protocol state and timer settings. */
+        window.selectProtocol = function(id, weight = null) {
+            const focus = currentWorkoutFocus; // CRITICAL: Use currentWorkoutFocus
+            let protocolDetails;
+
+            // Reset Timer UI
+            if (isTimerRunning) {
+                clearInterval(timerInterval);
+                isTimerRunning = false;
+            }
+            currentState = 'IDLE';
+            document.getElementById('timer-control-btn').textContent = 'Start Timer';
+            document.getElementById('timer-control-btn').disabled = (focus === 'Strength'); // Disable for Strength, enable for others
+            document.getElementById('timer-section').classList.toggle('hidden', focus === 'Strength');
+
+            // --- ENDURANCE ---
+            if (focus === 'Endurance') {
+                const option = protocols.Endurance.timerOptions.find(opt => opt.minutes === id);
+                if (!option || !weight) return;
+                
+                protocolDetails = { 
+                    id, 
+                    weight,
+                    trackingType: 'rounds',
+                    minutes: option.minutes,
+                    label: `${option.label} AMRAP @ ${weight}kg`
+                };
+
+                workDuration = option.minutes * 60;
+                timeRemaining = workDuration;
+                totalSets = 1; // Treated as one long set
+
+                // Set currentProtocol globally
+                currentProtocol = protocolDetails;
+                
+                // Update button visuals
+                document.querySelectorAll('.endurance-option').forEach(btn => btn.classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400'));
+                document.getElementById(`endurance-${id}-${weight}`).classList.add('bg-yellow-600', 'ring-2', 'ring-yellow-400');
+            } 
+            // --- POWER ---
+            else if (focus === 'Power') {
+                protocolDetails = protocols.Power.variants[id];
+                if (!protocolDetails) return;
+                
+                currentProtocol = { 
+                    id, 
+                    label: protocolDetails.label,
+                    trackingType: 'sets_reps',
+                    total_sets: protocolDetails.total_sets,
+                    target_reps: protocolDetails.target_reps,
+                    work: protocolDetails.work,
+                    rest: protocolDetails.rest
+                };
+
+                workDuration = protocolDetails.work;
+                restDuration = protocolDetails.rest;
+                totalSets = protocolDetails.total_sets;
+                timeRemaining = workDuration; // Will start with PREP duration in startStopTimer
+
+                // Update button visuals
+                document.querySelectorAll('.power-option').forEach(btn => btn.classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400'));
+                document.getElementById(`power-${id}`).classList.add('bg-yellow-600', 'ring-2', 'ring-yellow-400');
+            } 
+            // --- MOBILITY ---
+            else if (focus === 'Mobility') {
+                protocolDetails = protocols.Mobility;
+                currentProtocol = { 
+                    id: 'mobility', 
+                    label: `15 Minute Flow`,
+                    trackingType: 'duration',
+                    duration: protocolDetails.duration 
+                };
+                workDuration = protocolDetails.duration * 60;
+                timeRemaining = workDuration;
+                totalSets = 1; 
+
+                // Note: No selection required, it's a fixed 15-minute flow
+            }
+            // --- STRENGTH ---
+            else if (focus === 'Strength') {
+                // Strength is tracking-only, no active timer needed.
+                currentProtocol = protocols.Strength;
+                currentProtocol.id = 'strength';
+                // Note: No selection required, it's a fixed 5x3 circuit
+            }
+
+            // Final UI updates
+            updateTimerDisplay();
+            renderTrackingArea();
+            checkReportButtonStatus();
+        }
+        
+        /** Generates the initial selection UI based on the day's focus. */
+        function renderProtocolSelection(focus = currentWorkoutFocus) {
+            const container = document.getElementById('protocol-container');
+            let html = '';
+            let title = protocols[focus]?.name || focus;
+            let exercise = protocols[focus]?.exercise || '';
+
+            container.innerHTML = `<h3 class="text-2xl font-bold text-gray-300 mb-4 text-center">${title} Protocol</h3>`;
+
+            if (focus === 'Endurance') {
+                html = `<p class="text-center text-gray-400 mb-6 font-semibold">Exercise: ${exercise}</p>
+                        <div class="grid grid-cols-2 gap-4">`;
+                protocols.Endurance.timerOptions.forEach(timer => {
+                    protocols.Endurance.weightOptions.forEach(weight => {
+                        html += `<button 
+                                    id="endurance-${timer.minutes}-${weight}"
+                                    onclick="selectProtocol(${timer.minutes}, ${weight})"
+                                    class="endurance-option px-4 py-2 rounded-lg text-lg font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200"
+                                >
+                                    ${timer.label} @ ${weight}kg
+                                </button>`;
+                    });
+                });
+                html += `</div>`;
+            } else if (focus === 'Power') {
+                 html = `<p class="text-center text-gray-400 mb-6 font-semibold">Exercise: ${exercise} @ 20kg</p>
+                        <div class="flex justify-center space-x-4">`;
+                Object.keys(protocols.Power.variants).forEach(id => {
+                    const variant = protocols.Power.variants[id];
+                    html += `<button 
+                                id="power-${id}"
+                                onclick="selectProtocol('${id}')"
+                                class="power-option px-6 py-3 rounded-lg text-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200"
+                            >
+                                ${variant.label}
+                            </button>`;
+                });
+                html += `</div>`;
+            } else if (focus === 'Strength') {
+                // Strength has no selection options, automatically select the protocol and render tracking
+                html = `<p class="text-center text-gray-400 font-semibold">Protocol: ${exercise}</p>`;
+                selectProtocol('strength');
+            } else if (focus === 'Mobility') {
+                 // Mobility has no selection options, automatically select the protocol and render tracking
+                html = `<p class="text-center text-gray-400 font-semibold">Protocol: ${protocols.Mobility.duration} Minutes of ${exercise}</p>`;
+                selectProtocol('mobility');
+            }
+            
+            container.innerHTML += html;
+        }
+
+        // --- Focus Override Functions ---
+
+        function populateFocusSelector() {
+            const selector = document.getElementById('focus-selector');
+            const foci = ['Endurance', 'Strength', 'Power', 'Mobility'];
+            
+            selector.innerHTML = '';
+            
+            foci.forEach(f => {
+                const option = document.createElement('option');
+                option.value = f;
+                option.textContent = f;
+                if (f === dailyFocus.focus) {
+                    option.textContent = `${f} (Today's Default)`;
+                }
+                selector.appendChild(option);
+            });
+            // Set the selector to the initial default focus
+            selector.value = dailyFocus.focus; 
+        }
+
+        /** Updates UI and state when the user changes the workout focus. */
+        window.changeDailyFocus = function(newFocus) {
+            if (newFocus === currentWorkoutFocus) return;
+
+            // Reset timer on focus change
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                isTimerRunning = false;
+            }
+            currentState = 'IDLE';
+            
+            currentWorkoutFocus = newFocus;
+            updateHeaderAndProtocol(newFocus);
+            updateTimerDisplay();
+        }
+
+        /** Updates the header color and title, then re-renders the protocol selection. */
+        function updateHeaderAndProtocol(focus) {
+            document.getElementById('focus-display').textContent = `${dailyFocus.dayName}: ${focus}`;
+            
+            let color = 'bg-red-700';
+            if (focus === 'Strength') color = 'bg-blue-700';
+            else if (focus === 'Endurance') color = 'bg-green-700';
+            else if (focus === 'Power') color = 'bg-yellow-700';
+            else if (focus === 'Mobility') color = 'bg-indigo-700';
+
+            document.getElementById('focus-display').className = `text-3xl font-bold text-white uppercase tracking-wider p-2 rounded-lg inline-block ${color}`;
+
+            // Reset everything related to the previous protocol
+            currentProtocol = null;
+            trackingData = {};
+            
+            // Hide timer and tracking inputs until a specific protocol is selected
+            document.getElementById('timer-section').classList.add('hidden');
+            document.getElementById('tracking-container').innerHTML = '';
+            document.getElementById('report-area').classList.add('hidden'); // Hide report on focus change
+
+            renderProtocolSelection(focus);
+        }
+
+        // --- Main App Setup ---
+
+        function setupHomepage() {
+            dailyFocus = getCurrentDayFocus();
+            // Initialize currentWorkoutFocus to the default daily focus
+            currentWorkoutFocus = dailyFocus.focus; 
+
+            document.getElementById('date-display').textContent = dailyFocus.date;
+            
+            populateFocusSelector(); 
+            updateHeaderAndProtocol(currentWorkoutFocus);
+        }
+
+        // --- Firebase Initialization ---
+        async function initFirebase() {
+            // 1. Initialize services
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            // 2. Handle Authentication (using provided token or falling back to anonymous)
+            await new Promise(resolve => {
+                const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                    } else if (initialAuthToken) {
+                        try {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } catch (error) {
+                            console.error("Error signing in with custom token:", error);
+                            await signInAnonymously(auth); // Fallback
+                        }
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    
+                    userId = auth.currentUser?.uid || 'anon';
+                    isAuthReady = true;
+                    unsubscribe();
+                    resolve();
+                });
+            });
+            console.log(`Firebase Ready. User ID: ${userId}`);
+        }
+
+        // --- Reporting ---
+
+        /** Generates a copy-paste summary of the completed workout using the Gemini API. */
         window.generateWorkoutReport = async function() {
             const reportBtn = document.getElementById('report-btn');
             const spinner = document.getElementById('loading-spinner');
@@ -1962,25 +818,52 @@
             reportArea.classList.remove('hidden');
 
             // 1. Compile logged data into a clear string
-            let loggedDataString = "Completed Strength Workout:\n";
+            let loggedDataString = `--- ${dailyFocus.dayName} (${currentWorkoutFocus}) Workout Log ---\n`;
             let foundData = false;
 
-            Object.keys(currentWorkout).forEach(category => {
-                const exercise = currentWorkout[category];
-                const singleSet = exercise.sets[0];
-                
-                const weight = parseFloat(singleSet.weight) || 0;
-                const reps = parseFloat(singleSet.reps) || 0;
+            if (!currentProtocol) {
+                reportTextEl.textContent = "Please select a protocol first.";
+                resultDiv.classList.remove('hidden');
+                return;
+            }
 
-                if (weight > 0 || reps > 0) {
+            // Data extraction based on protocol type
+            if (currentProtocol.trackingType === 'rounds') {
+                const rounds = trackingData.rounds || 0;
+                const reps = trackingData.reps || 0;
+                if (rounds > 0 || reps > 0) {
                     foundData = true;
-                    const setsString = `${weight}kg x ${reps} reps`;
-                    loggedDataString += `${exercise.name}: ${setsString}.\n`;
+                    loggedDataString += `Protocol: ${currentProtocol.label} (${currentProtocol.minutes}M AMRAP).\n`;
+                    loggedDataString += `Exercise: ${protocols.Endurance.exercise}.\n`;
+                    loggedDataString += `Result: Completed ${rounds} Rounds + ${reps} Reps.\n`;
                 }
-            });
+            } else if (currentProtocol.trackingType === 'sets_reps') {
+                const setsCompleted = trackingData.setsCompleted || 0;
+                const totalReps = trackingData.totalReps || 0;
+                if (setsCompleted > 0 || totalReps > 0) {
+                    foundData = true;
+                    loggedDataString += `Protocol: ${currentProtocol.label} (Sets: ${currentProtocol.total_sets}, Target Reps: ${currentProtocol.target_reps}).\n`;
+                    loggedDataString += `Exercise: ${protocols.Power.exercise} @ 20kg.\n`;
+                    loggedDataString += `Result: Completed ${setsCompleted} Sets for a Total of ${totalReps} Reps.\n`;
+                }
+            } else if (currentProtocol.trackingType === 'weight_reps') {
+                loggedDataString += `Protocol: ${protocols.Strength.name} (${protocols.Strength.exercise}).\n`;
+                Object.keys(trackingData).forEach(category => {
+                    const data = trackingData[category];
+                    const weight = parseFloat(data.weight) || 0;
+                    if (weight > 0) {
+                        foundData = true;
+                        loggedDataString += `> ${category} (${data.exercise}): Max ${weight}kg x ${data.reps}R.\n`;
+                    }
+                });
+            } else if (currentProtocol.trackingType === 'duration') {
+                foundData = true; // Mobility is always complete by time
+                loggedDataString += `Protocol: Mobility Flow - ${currentProtocol.duration} Minutes.\n`;
+                loggedDataString += `Notes: ${trackingData.notes || 'No specific notes logged.'}\n`;
+            }
 
             if (!foundData) {
-                reportTextEl.textContent = "Please log at least one exercise with non-zero reps or weight before generating a report.";
+                reportTextEl.textContent = "No performance data was logged. Please fill in your results before generating a report.";
                 resultDiv.classList.remove('hidden');
                 return;
             }
@@ -1994,8 +877,8 @@
             document.getElementById('copy-message').classList.add('hidden');
 
 
-            const systemPrompt = "You are a concise workout logger. Your task is to take the raw workout data provided (which consists of a single set per exercise) and condense it into a single, clean paragraph, formatted for easy copy-pasting into a personal fitness log. Do not use bullet points or line breaks. The format should be: [Exercise Name] [Weight]kg x [Reps]R, [Exercise Name] [Weight]kg x [Reps]R, ... . Only output the final paragraph, no pre-amble or extra text.";
-            const userQuery = `Condense the following single-set workout data into a single paragraph summary: \n\n${loggedDataString}`;
+            const systemPrompt = "You are a concise workout logger. Take the raw workout data and summarize it into a single, clean paragraph formatted for a fitness log. State the day's focus, the protocol used, and the result (Rounds/Reps/Max Weight). Do not use bullet points or line breaks. Only output the final paragraph, no pre-amble or extra text.";
+            const userQuery = `Condense the following workout data into a single paragraph summary:\n\n${loggedDataString}`;
             
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
 
@@ -2034,6 +917,25 @@
             }
         }
         
+        // --- Utility: Exponential Backoff for API Calls ---
+        async function fetchWithBackoff(url, options, maxRetries = 5) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) {
+                        return response;
+                    }
+                    if (i === maxRetries - 1) throw new Error(`Fetch failed after ${maxRetries} attempts with status ${response.status}.`);
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        throw error;
+                    }
+                }
+                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+
         // --- Clipboard Function ---
         window.copyToClipboard = function() {
             const textToCopy = document.getElementById('report-text').textContent;
@@ -2054,12 +956,14 @@
             document.body.removeChild(textArea);
         }
 
-        // Initialize on load
-        window.onload = async function() {
-            await initFirebase();
-            generateWorkout();
-            updateTimerDisplay(); // Initialize timer UI
-        };
+        // --- Main App Initialization ---
+        async function mainInit() {
+            await initFirebase(); 
+            setupHomepage();
+            updateTimerDisplay();
+        }
+
+        mainInit();
     </script>
 </body>
 </html>
