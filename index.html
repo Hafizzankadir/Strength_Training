@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Random Strength Workout & Tracker</title>
+    <title>Full Modality Workout Generator & Tracker</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Tone.js for high-quality audio cues -->
@@ -15,11 +15,10 @@
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
             display: flex;
-            align-items: flex-start; /* Align to top to give space for the report area */
+            align-items: flex-start;
             justify-content: center;
             background-color: #0d1117; /* Dark background */
         }
-        /* Custom scrollbar for aesthetics */
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -42,11 +41,25 @@
             background-color: #1f2937;
             color: #d1d5db;
             border-radius: 8px;
+            font-size: 16px;
         }
-        /* Style for the Select box */
         select {
-            /* Ensures background is dark and text is bright for consistency */
             background-color: #161b22; 
+        }
+        .tab-active {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); /* Blue glow */
+            border-color: #3b82f6;
+        }
+        .control-button {
+            padding: 10px 20px;
+            font-size: 1.125rem;
+            font-weight: 600;
+            border-radius: 0.75rem;
+            transition: all 0.3s;
+        }
+        .control-button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -54,70 +67,35 @@
 
     <div id="app" class="w-full max-w-4xl p-4 md:p-8 mt-8 pb-16">
         <header class="text-center mb-8">
-            <h1 class="text-4xl md:text-5xl font-extrabold text-blue-400 mb-2 tracking-tight">The Strength Logbook (Single Set)</h1>
-            <p class="text-lg text-gray-400">Generate, track, and log your full-body strength workout with a single working set per lift.</p>
+            <h1 class="text-4xl md:text-5xl font-extrabold text-blue-400 mb-2 tracking-tight">Full Modality Workout Generator</h1>
+            <p class="text-lg text-gray-400">Select a modality to generate and track your focused single-set workout.</p>
         </header>
 
-        <!-- Click Counter & Reset -->
-        <div class="flex flex-wrap justify-center gap-4 mb-10">
-            <button id="click-counter" onclick="incrementCounter()"
-                    class="
-                        flex items-center space-x-2 px-6 py-3 text-xl font-bold rounded-xl
-                        bg-gray-800 text-yellow-400 shadow-2xl shadow-gray-900/50
-                        hover:bg-gray-700 active:scale-95 transition-all duration-150
-                    ">
-                <span>Total Clicks:</span>
-                <span id="counter-display" class="w-8 text-center">0</span>
+        <!-- Modality Selection Tabs -->
+        <div class="flex flex-wrap justify-center gap-4 mb-10 bg-[#1f2937] p-4 rounded-xl shadow-xl border border-gray-700">
+            <button onclick="selectWorkoutType('Strength')" id="tab-Strength"
+                    class="px-5 py-2 text-lg font-semibold rounded-xl text-white bg-gray-800 border-2 border-transparent transition-all duration-200 hover:bg-gray-700">
+                💪 Strength
             </button>
-            <button onclick="resetCounter()"
-                    class="
-                        px-6 py-3 text-xl font-bold rounded-xl bg-red-600 text-white
-                        hover:bg-red-500 active:scale-95 transition-all duration-150
-                    ">
-                Reset Counter
+            <button onclick="selectWorkoutType('Power')" id="tab-Power"
+                    class="px-5 py-2 text-lg font-semibold rounded-xl text-white bg-gray-800 border-2 border-transparent transition-all duration-200 hover:bg-gray-700">
+                ⚡ Power
+            </button>
+            <button onclick="selectWorkoutType('Endurance')" id="tab-Endurance"
+                    class="px-5 py-2 text-lg font-semibold rounded-xl text-white bg-gray-800 border-2 border-transparent transition-all duration-200 hover:bg-gray-700">
+                🏃 Endurance
+            </button>
+            <button onclick="selectWorkoutType('Mobility')" id="tab-Mobility"
+                    class="px-5 py-2 text-lg font-semibold rounded-xl text-white bg-gray-800 border-2 border-transparent transition-all duration-200 hover:bg-gray-700">
+                🧘 Mobility
             </button>
         </div>
 
-        <!-- Timer Section -->
-        <div class="bg-[#1f2937] p-6 rounded-2xl shadow-xl border border-gray-700 mb-10">
-            <h2 class="text-2xl font-bold text-gray-300 mb-4 text-center">Interval Timer (5 Sets)</h2>
-            
-            <!-- Protocol Selection -->
-            <div class="flex justify-center space-x-4 mb-6">
-                <button onclick="selectProtocol(300, 60)" id="protocol-5-1"
-                        class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
-                    5 min ON / 1 min OFF
-                </button>
-                <button onclick="selectProtocol(180, 60)" id="protocol-3-1"
-                        class="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
-                    3 min ON / 1 min OFF
-                </button>
-            </div>
 
-            <!-- Timer Display -->
-            <div id="timer-display-card" class="p-6 rounded-xl text-center transition-all duration-500 bg-gray-800 shadow-inner">
-                <p id="state-display" class="text-2xl font-semibold text-gray-400 mb-2">
-                    Select a Protocol to Start
-                </p>
-                <p id="time-display" class="text-7xl md:text-8xl font-extrabold text-blue-400 mb-2">
-                    --:--
-                </p>
-                <p id="set-display" class="text-xl font-medium text-gray-500">
-                    Set: 0 / 5
-                </p>
-            </div>
-            
-            <!-- Control Button -->
-            <div class="mt-6 flex justify-center">
-                <button onclick="startStopTimer()" id="timer-control-btn" disabled
-                        class="
-                            px-8 py-3 text-xl font-semibold rounded-xl transition-all duration-300
-                            bg-gray-600 text-white
-                            disabled:opacity-50 disabled:cursor-not-allowed
-                        ">
-                    Start Timer
-                </button>
-            </div>
+        <!-- Timer Section - Dynamic based on Modality -->
+        <div id="workout-timer-container" class="bg-[#1f2937] p-6 rounded-2xl shadow-xl border border-gray-700 mb-10">
+            <!-- Dynamic Timer Controls and Display will be rendered here -->
+            <h2 class="text-2xl font-bold text-gray-300 mb-4 text-center">Timer Loading...</h2>
         </div>
 
         <!-- Workout Grid (Responsive: 1 column on mobile, 2 on tablet, 3 on desktop) -->
@@ -171,7 +149,7 @@
     </div>
 
     <script type="module">
-        // --- Mandatory Firebase & API Key Setup (Boilerplate for the environment) ---
+        // --- Mandatory Firebase & API Key Setup ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -187,80 +165,122 @@
         let isAuthReady = false;
         let currentWorkout = {}; 
         
-        // --- Counter Variables and Functions ---
-        let clickCount = 0; 
+        // --- Modality State ---
+        let currentWorkoutType = 'Strength'; // Default on load
 
-        window.incrementCounter = function() {
-            clickCount++;
-            document.getElementById('counter-display').textContent = clickCount;
-        }
-        
-        window.resetCounter = function() {
-            clickCount = 0;
-            document.getElementById('counter-display').textContent = clickCount;
-        }
-        
+        // --- Core Data: The Exercise Catalog & Templates ---
+        const workoutTemplates = {
+            Strength: {
+                categories: ['Squat', 'Hinge', 'Push', 'Pull', 'Core'],
+                inputLabels: { input1: 'Weight (kg)', input2: 'Reps' },
+                exercises: {
+                    Squat: ['SB Goblet Squat', 'SB Shoulder Squat', 'KB Goblet Squat', 'KB Split Squat', 'KB Step Up'],
+                    Hinge: ['SB Clean', 'KB Single Swing', 'KB Double Swing', 'SB DL', 'Sumo Hinge'],
+                    Push: ['SB Floor Press', 'SB OHP', 'KB OHP', 'Ring Dip', 'One Arm Push Up'],
+                    Pull: ['SB Row', 'KB Row', 'Pull Up', 'Chin Up', 'Ring Row'],
+                    Core: ['KB Get Up', 'SB Get Up', 'KB WindMill', 'KB Marches', 'Roll Over']
+                },
+                timerProtocol: { name: 'Generic Intervals (5 Sets)', work: [300, 180], rest: [60, 60] } 
+            },
+            Endurance: {
+                categories: ['Complex'],
+                inputLabels: { input1: 'Total Time (min)', input2: 'Reps Achieved' },
+                exercises: {
+                    Complex: ['Iron Cardio: Clean + Press + Squat + Snatch'],
+                },
+                weights: [20, 32], // Specific weights for selector
+                timerProtocol: { name: 'Total Time Flow', durations: [10, 20, 30] }
+            },
+            Power: {
+                categories: ['Girevoy Sport'],
+                inputLabels: { input1: 'Reps Achieved', input2: 'Set Stopped On' },
+                exercises: {
+                    'Girevoy Sport': ['Viking Conditioning: Snatch'],
+                },
+                powerProtocols: [
+                    { id: '80SET', totalSets: 80, work: 15, rest: 15, exercise: '7 Snatch @ 20kg' },
+                    { id: '35SET', totalSets: 35, work: 32, rest: 32, exercise: '17 Snatch @ 20kg' }
+                ],
+                timerProtocol: { name: 'Viking Conditioning Intervals' }
+            },
+            Mobility: {
+                categories: ['Lower Body', 'Upper Body'],
+                inputLabels: { input1: 'Time (s) per side', input2: 'Quality (1-5)' },
+                exercises: {
+                    'Lower Body': ['Pigeon Pose (Active)', '90/90 Internal Rotation', 'Adductor Rockback'],
+                    'Upper Body': ['Thoracic Rotation (Side Lying)', 'Arm Circles (Internal/External)', 'Wall Slides']
+                },
+                timerProtocol: { name: '20 Min Flow', lowerTime: 600, upperTime: 600 } // 10 minutes each
+            }
+        };
+
         // --- Timer Variables ---
         let timerInterval = null;
         let isTimerRunning = false;
-        let currentSet = 0; // 0 for Prep, 1 to 5 for Work/Rest cycles
-        let currentState = 'IDLE'; // 'IDLE', 'PREP', 'WORK', 'REST', 'FINISHED'
+        let currentSet = 0; 
+        let maxSets = 5; // Dynamic max sets
+        let currentState = 'IDLE'; 
         let timeRemaining = 0;
         let workDuration = 0;
         let restDuration = 0;
-        const totalSets = 5;
-        const prepDuration = 30;
+        const prepDuration = 15; // Reduced prep for quicker starts
 
-        // --- Tone.js/Audio Variables ---
         let timerSynth = null;
         let isAudioInitialized = false;
 
-        /**
-         * Initializes the Tone.js audio context and synth.
-         * Must be called after a user gesture (like clicking Start Timer).
-         */
+        // --- Firebase Init (Boilerplate) ---
+        async function initFirebase() {
+            // ... (Firebase boilerplate remains the same) ...
+            try {
+                if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+                    console.warn("Firebase config not found or is empty. Running anonymously.");
+                }
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                userId = auth.currentUser?.uid || 'anon-user-' + crypto.randomUUID();
+                isAuthReady = true;
+                console.log("Firebase initialized. User ID:", userId);
+            } catch (error) {
+                console.error("Error during Firebase initialization or sign-in:", error);
+            }
+        }
+        
+        // --- Audio Functions ---
         function initAudio() {
             if (isAudioInitialized) return;
             try {
-                // Initialize audio context
                 Tone.start(); 
-                
-                // Simple synth for all beeps
                 timerSynth = new Tone.Synth({
                     oscillator: { type: "sine" },
                     envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 }
                 }).toDestination();
-                
                 isAudioInitialized = true;
-                console.log("Audio Context initialized with Tone.js");
             } catch (e) {
                 console.error("Failed to initialize Tone.js", e);
             }
         }
-
-        /** Plays a high-pitched double beep for the start of the WORK interval. */
         function playWorkSound() {
             if (timerSynth) {
                 timerSynth.triggerAttackRelease("G4", "8n");
-                timerSynth.triggerAttackRelease("C5", "8n", Tone.now() + 0.15); // Slightly delayed second beep
+                timerSynth.triggerAttackRelease("C5", "8n", Tone.now() + 0.15); 
             }
         }
-
-        /** Plays a low-pitched single beep for the start of the REST interval. */
         function playRestSound() {
             if (timerSynth) {
                 timerSynth.triggerAttackRelease("C3", "4n");
             }
         }
-
-        /** Plays a quick beep for the 3-second warning countdown. */
         function playWarningBeep() {
             if (timerSynth) {
                 timerSynth.triggerAttackRelease("E4", "16n");
             }
         }
-
-        /** Plays a fanfare for the FINISHED state. */
         function playFinishSound() {
             if (timerSynth) {
                 timerSynth.triggerAttackRelease("C4", "8n");
@@ -270,41 +290,14 @@
             }
         }
 
-        // --- Firebase Init ---
-        async function initFirebase() {
-            try {
-                if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-                    console.warn("Firebase config not found or is empty. Running anonymously.");
-                }
-
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                userId = auth.currentUser?.uid || 'anon-user-' + crypto.randomUUID();
-                isAuthReady = true;
-                console.log("Firebase initialized. User ID:", userId);
-            } catch (error) {
-                console.error("Error during Firebase initialization or sign-in:", error);
-            }
-        }
-        
         // --- Timer Utility Functions ---
         
-        /** Formats seconds into MM:SS string. */
         function formatTime(totalSeconds) {
             const minutes = Math.floor(totalSeconds / 60);
             const seconds = totalSeconds % 60;
             return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
         
-        /** Updates the visual display elements of the timer. */
         function updateTimerDisplay() {
             const timeDisplay = document.getElementById('time-display');
             const stateDisplay = document.getElementById('state-display');
@@ -312,9 +305,21 @@
             const card = document.getElementById('timer-display-card');
             const controlBtn = document.getElementById('timer-control-btn');
 
+            if (!timeDisplay || !stateDisplay || !setDisplay || !card || !controlBtn) return;
+
+
             timeDisplay.textContent = formatTime(timeRemaining);
-            setDisplay.textContent = `Set: ${currentSet} / ${totalSets}`;
             
+            let totalSetText = '';
+            if (currentWorkoutType === 'Mobility') {
+                totalSetText = `Segment: ${currentState === 'WORK' ? 'LOWER BODY' : currentState === 'REST' ? 'UPPER BODY' : 'FLOW'}`;
+            } else if (currentWorkoutType === 'Endurance' && currentState !== 'IDLE') {
+                totalSetText = `Total Time Target: ${formatTime(workDuration)}`;
+            } else {
+                 totalSetText = `Set: ${currentSet} / ${maxSets}`;
+            }
+            setDisplay.textContent = totalSetText;
+
             // Update state text and color
             let stateText = '';
             let colorClass = 'text-blue-400';
@@ -323,7 +328,7 @@
             
             switch (currentState) {
                 case 'IDLE':
-                    stateText = 'Select a Protocol to Start';
+                    stateText = 'Select Protocol to Start';
                     colorClass = 'text-gray-400';
                     card.classList.add('bg-gray-800');
                     controlBtn.textContent = 'Start Timer';
@@ -335,13 +340,14 @@
                     controlBtn.textContent = 'Pause Timer';
                     break;
                 case 'WORK':
-                    stateText = 'WORK (Set ' + currentSet + ')';
+                    stateText = currentWorkoutType === 'Endurance' ? 'TIME UNDER TENSION' : currentWorkoutType === 'Mobility' ? 'LOWER BODY FLOW' : 'WORK';
+                    stateText += (currentWorkoutType !== 'Endurance' && currentWorkoutType !== 'Mobility') ? ` (Set ${currentSet})` : '';
                     colorClass = 'text-green-400';
                     card.classList.add('bg-green-800/30');
                     controlBtn.textContent = 'Pause Timer';
                     break;
                 case 'REST':
-                    stateText = 'REST (Break)';
+                    stateText = currentWorkoutType === 'Mobility' ? 'UPPER BODY FLOW' : 'REST';
                     colorClass = 'text-red-400';
                     card.classList.add('bg-red-800/30');
                     controlBtn.textContent = 'Pause Timer';
@@ -362,7 +368,6 @@
             if (timeRemaining > 0) {
                 timeRemaining--;
                 
-                // Play warning beep for last 3 seconds of any phase
                 if (timeRemaining > 0 && timeRemaining <= 3) {
                     playWarningBeep();
                 }
@@ -374,20 +379,31 @@
             // Time is zero, transition state
             switch (currentState) {
                 case 'PREP':
-                    // Transition: PREP -> WORK (Set 1)
+                    // Transition: PREP -> WORK (Set 1 or Segment 1)
                     currentSet = 1;
                     currentState = 'WORK';
                     timeRemaining = workDuration;
                     playWorkSound();
                     break;
                 case 'WORK':
-                    if (currentSet < totalSets) {
-                        // Transition: WORK -> REST
+                    if (currentWorkoutType === 'Endurance') {
+                        // Total time countdown reached zero
+                        clearInterval(timerInterval);
+                        isTimerRunning = false;
+                        currentState = 'FINISHED';
+                        playFinishSound();
+                    } else if (currentWorkoutType === 'Mobility') {
+                         // Transition: LOWER BODY (WORK) -> UPPER BODY (REST)
+                        currentState = 'REST'; 
+                        timeRemaining = restDuration; // This is the upper body time (600s)
+                        playRestSound();
+                    } else if (currentSet < maxSets) {
+                        // Strength/Power Interval: WORK -> REST
                         currentState = 'REST';
                         timeRemaining = restDuration;
                         playRestSound();
                     } else {
-                        // Transition: WORK (Last Set) -> FINISHED
+                        // Strength/Power: WORK (Last Set) -> FINISHED
                         clearInterval(timerInterval);
                         isTimerRunning = false;
                         currentState = 'FINISHED';
@@ -396,17 +412,20 @@
                     }
                     break;
                 case 'REST':
-                    // Transition: REST -> WORK
-                    currentSet++;
-                    currentState = 'WORK';
-                    timeRemaining = workDuration;
-                    playWorkSound();
-                    break;
-                case 'IDLE':
-                case 'FINISHED':
-                    // Should not happen when timer is running
-                    clearInterval(timerInterval);
-                    isTimerRunning = false;
+                    if (currentWorkoutType === 'Mobility') {
+                         // Transition: UPPER BODY (REST) -> FINISHED
+                        clearInterval(timerInterval);
+                        isTimerRunning = false;
+                        currentState = 'FINISHED';
+                        timeRemaining = 0;
+                        playFinishSound();
+                    } else if (currentSet < maxSets) {
+                        // Strength/Power Interval: REST -> WORK
+                        currentSet++;
+                        currentState = 'WORK';
+                        timeRemaining = workDuration;
+                        playWorkSound();
+                    }
                     break;
             }
             updateTimerDisplay();
@@ -415,7 +434,7 @@
         // --- Timer Control Functions ---
         
         /** Selects a workout protocol and resets the timer state. */
-        window.selectProtocol = function(workTime, restTime) {
+        window.selectProtocol = function(newWorkDuration, newRestDuration, newMaxSets = 5) {
             // Stop any running timer first
             if (isTimerRunning) {
                 clearInterval(timerInterval);
@@ -423,30 +442,46 @@
             }
 
             // Reset state
-            workDuration = workTime;
-            restDuration = restTime;
+            workDuration = newWorkDuration;
+            restDuration = newRestDuration;
+            maxSets = newMaxSets;
             currentSet = 0;
             currentState = 'IDLE';
-            timeRemaining = workDuration; // Just for initial display (5:00 or 3:00)
+            timeRemaining = newWorkDuration; 
             
             // Update button styles to show selection
-            document.getElementById('protocol-5-1').classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
-            document.getElementById('protocol-3-1').classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
+            document.querySelectorAll('#workout-timer-container button').forEach(btn => {
+                btn.classList.remove('bg-yellow-600', 'ring-2', 'ring-yellow-400');
+            });
             
-            const selectedBtnId = (workTime === 300) ? 'protocol-5-1' : 'protocol-3-1';
-            document.getElementById(selectedBtnId).classList.add('bg-yellow-600', 'ring-2', 'ring-yellow-400');
+            const selectedBtnId = (currentWorkoutType === 'Strength' || currentWorkoutType === 'Power') 
+                ? `protocol-${maxSets}` 
+                : `protocol-${newWorkDuration}`;
+            
+            const selectedBtn = document.getElementById(selectedBtnId);
+            if (selectedBtn) {
+                selectedBtn.classList.add('bg-yellow-600', 'ring-2', 'ring-yellow-400');
+            }
+
 
             // Enable control button and update display
             document.getElementById('timer-control-btn').disabled = false;
             document.getElementById('time-display').textContent = formatTime(workDuration);
-            document.getElementById('set-display').textContent = `Set: 0 / ${totalSets} (Ready)`;
-            document.getElementById('state-display').textContent = `Ready: ${formatTime(workDuration/60)}M Work / ${formatTime(restDuration/60)}M Rest`;
+            document.getElementById('set-display').textContent = (currentWorkoutType === 'Endurance' || currentWorkoutType === 'Mobility') 
+                ? `Total Duration: ${formatTime(workDuration + restDuration)}`
+                : `Set: 0 / ${maxSets} (Ready)`;
+            
+            document.getElementById('state-display').textContent = currentWorkoutType === 'Endurance' 
+                ? `Ready: ${formatTime(workDuration)} Countdown`
+                : currentWorkoutType === 'Mobility'
+                ? `Ready: 10M Lower / 10M Upper`
+                : `Ready: ${formatTime(workDuration)} Work / ${formatTime(restDuration)} Rest`;
+            
             document.getElementById('timer-control-btn').textContent = 'Start Timer';
         }
 
         /** Starts, pauses, or restarts the timer. */
         window.startStopTimer = function() {
-            // Initialize Audio Context on first user click
             if (!isAudioInitialized) {
                 initAudio();
             }
@@ -455,7 +490,13 @@
 
             if (currentState === 'FINISHED') {
                 // Restart logic
-                selectProtocol(workDuration, restDuration); // Re-selects the last protocol
+                if (currentWorkoutType === 'Mobility') {
+                    selectProtocol(600, 600, 2); // Mobility fixed protocol
+                } else if (currentWorkoutType === 'Endurance') {
+                    selectProtocol(workDuration, 0, 1); // Endurance fixed protocol (uses last duration)
+                } else {
+                    selectProtocol(workDuration, restDuration, maxSets); // Re-selects the last protocol
+                }
                 return;
             }
 
@@ -475,147 +516,279 @@
                 
                 timerInterval = setInterval(countdown, 1000);
                 isTimerRunning = true;
-                controlBtn.textContent = 'Pause Timer';
+                controlBtn.textContent = 'Stop Timer'; // Changed to STOP for more clarity when running
                 updateTimerDisplay(); // Update immediately to show new state/time
             }
         }
+        
+        // --- Timer UI Renderer ---
+        window.renderTimerControls = function() {
+            const container = document.getElementById('workout-timer-container');
+            const template = workoutTemplates[currentWorkoutType];
+            let html = `<h2 class="text-2xl font-bold text-gray-300 mb-4 text-center">${template.timerProtocol.name}</h2>`;
 
-
-        // --- Utility: Exponential Backoff for API Calls ---
-        async function fetchWithBackoff(url, options, maxRetries = 5) {
-            for (let i = 0; i < maxRetries; i++) {
-                try {
-                    const response = await fetch(url, options);
-                    if (response.ok) {
-                        return response;
-                    }
-                    if (i === maxRetries - 1) throw new Error(`Fetch failed after ${maxRetries} attempts with status ${response.status}.`);
-                } catch (error) {
-                    if (i === maxRetries - 1) {
-                        throw error;
-                    }
-                }
-                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
-                await new Promise(resolve => setTimeout(resolve, delay));
+            // Protocol Selection Buttons
+            html += '<div class="flex justify-center flex-wrap gap-4 mb-6">';
+            
+            if (currentWorkoutType === 'Strength') {
+                html += `
+                    <button onclick="selectProtocol(300, 60, 5)" id="protocol-5"
+                            class="control-button text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
+                        5 Sets (5:00 ON / 1:00 OFF)
+                    </button>
+                    <button onclick="selectProtocol(180, 60, 5)" id="protocol-5"
+                            class="control-button text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
+                        5 Sets (3:00 ON / 1:00 OFF)
+                    </button>
+                `;
+            } else if (currentWorkoutType === 'Endurance') {
+                 template.timerProtocol.durations.forEach(min => {
+                    const sec = min * 60;
+                    html += `
+                        <button onclick="selectProtocol(${sec}, 0, 1)" id="protocol-${sec}"
+                                class="control-button text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
+                            ${min} Minutes Total
+                        </button>
+                    `;
+                });
+            } else if (currentWorkoutType === 'Power') {
+                template.powerProtocols.forEach(p => {
+                    const setTime = p.work + p.rest;
+                    html += `
+                        <button onclick="selectProtocol(${p.work}, ${p.rest}, ${p.totalSets})" id="protocol-${p.totalSets}"
+                                class="control-button text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
+                            ${p.totalSets} Sets (${p.work}s ON / ${p.rest}s OFF)
+                        </button>
+                    `;
+                });
+            } else if (currentWorkoutType === 'Mobility') {
+                const totalTime = (template.timerProtocol.lowerTime + template.timerProtocol.upperTime) / 60;
+                html += `
+                    <button onclick="selectProtocol(${template.timerProtocol.lowerTime}, ${template.timerProtocol.upperTime}, 2)" id="protocol-${template.timerProtocol.lowerTime + template.timerProtocol.upperTime}"
+                            class="control-button text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors duration-200">
+                        ${totalTime} Minutes Fixed Flow
+                    </button>
+                `;
             }
+
+            html += '</div>';
+
+            // Timer Display
+            html += `
+                <div id="timer-display-card" class="p-6 rounded-xl text-center transition-all duration-500 bg-gray-800 shadow-inner">
+                    <p id="state-display" class="text-2xl font-semibold text-gray-400 mb-2">
+                        Select a Protocol to Start
+                    </p>
+                    <p id="time-display" class="text-7xl md:text-8xl font-extrabold text-blue-400 mb-2">
+                        --:--
+                    </p>
+                    <p id="set-display" class="text-xl font-medium text-gray-500">
+                        Set: 0 / ${maxSets}
+                    </p>
+                </div>
+                
+                <!-- Control Button -->
+                <div class="mt-6 flex justify-center">
+                    <button onclick="startStopTimer()" id="timer-control-btn" disabled
+                            class="control-button bg-gray-600 text-white">
+                        Start Timer
+                    </button>
+                </div>
+            `;
+            container.innerHTML = html;
         }
 
-        // --- Utility Function: Get a random element from an array ---
+        // --- Utility: Get a random element from an array ---
         function getRandomExercise(array) {
             const randomIndex = Math.floor(Math.random() * array.length);
             return array[randomIndex];
         }
 
-        // --- Utility Function: Get icon SVG based on category ---
+        // --- Utility Function: Get icon SVG based on category (uses general shapes) ---
         function getIconPath(category) {
             switch (category) {
-                case 'Squat': return 'M3 14H6V21H18V14H21M13 3H11V6H13M12 21V16M8 12V14H16V12';
+                case 'Squat': return 'M3 14H6V21H18V14H21M13 3H11V6H13M12 21V16M8 12V14H16V12'; 
                 case 'Hinge': return 'M5 19V17H19V19M12 3V17M17 17H7V15H17';
                 case 'Push': return 'M21 8V16M3 8V16M16 12H8M16 8H8V16H16Z';
                 case 'Pull': return 'M4 6H20M12 6V18M15 15L12 18L9 15';
                 case 'Core': return 'M12 2C6.477 2 2 6.477 2 12C2 17.523 6.477 22 12 22C17.523 22 22 17.523 22 12C22 6.477 17.523 2 12 2ZM12 4V20M12 4C14.21 4 16 5.79 16 8V16C16 18.21 14.21 20 12 20';
-                default: return 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14l-4-4 4-4 4 4-4 4z';
+                case 'Complex': return 'M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 110-16 8 8 0 010 16zm1-13h-2v4H9l3 4 3-4h-2V7z'; // Kettlebell icon
+                case 'Girevoy Sport': return 'M15 3C10.0294 3 6 7.02944 6 12C6 16.9706 10.0294 21 15 21M9 12C9 9.23858 11.2386 7 14 7V17C11.2386 17 9 14.7614 9 12Z'; // Heavy Lift/Snatch
+                case 'Lower Body': return 'M12 12L12 16M12 16L9 19M12 16L15 19'; // Hip joint
+                case 'Upper Body': return 'M12 12L16 8M12 12L8 8M12 12V4M12 12H20M12 12H4'; // Shoulder mobility
+                default: return 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14l-4-4 4-4 4 4-4 4z'; // Default
             }
         }
         
-        // --- Core Data: The Exercise Catalog ---
-        const exercises = {
-            Squat: ['SB Goblet Squat', 'SB Shoulder Squat', 'SB Goblet Lunge', 'SB Shoulder Lunge', 'KB Goblet Squat', 'KB Shoulder Squat', 'KB Goblet Lunge', 'KB Shoulder Lunge', 'KB Split Squat', 'KB Step Up', 'KB BSS'],
-            Hinge: ['Hinge', 'SB Clean', 'SB Hip Thrust', 'SB Hip Bridge', 'KB Single Swing', 'KB Double Swing', 'KB Double DL', 'KB Single RDL', 'KB Kneeling Squat', 'SB DL', 'SB Single RDL', 'Sumo Hinge'],
-            Push: ['SB Floor Press', 'SB Incline Press', 'SB OHP', 'KB OHP', 'KB Incline Press', 'Normal Push Up', 'Decline Push Up', 'Incline Push Up', 'Ring Push Up', 'Ring Dip', 'One Arm Push Up'],
-            Pull: ['SB Row', 'KB Row', 'Pull Up', 'Chin Up', 'Ring Row'],
-            Core: ['KB Sit Up', 'KB Get Up', 'SB Get Up', 'SB Goblet Carry', 'SB Shoulder Carry', 'KB Goblet Carry', 'KB Shoulder Carry', 'KB WindMill', 'KB Around the World', 'KB Marches', 'SB Sled Work', 'Roll Over']
-        };
+        // --- Workout Type Selection ---
+        window.selectWorkoutType = function(type) {
+            currentWorkoutType = type;
+            // Highlight the selected tab
+            document.querySelectorAll('.flex > button').forEach(btn => {
+                btn.classList.remove('tab-active', 'bg-blue-600', 'hover:bg-blue-500');
+                btn.classList.add('bg-gray-800', 'hover:bg-gray-700');
+            });
+
+            const selectedBtn = document.getElementById(`tab-${type}`);
+            selectedBtn.classList.add('tab-active', 'bg-blue-600', 'hover:bg-blue-500');
+            selectedBtn.classList.remove('bg-gray-800', 'hover:bg-gray-700');
+
+            // 1. Render new timer controls
+            renderTimerControls();
+
+            // 2. Generate a workout immediately
+            generateWorkout();
+        }
 
         // --- Workout Tracking Functions ---
 
-        /**
-         * Renders the single set input row for an exercise.
-         */
+        /** Renders the single set input row for an exercise based on the current modality. */
         function renderSingleSetHtml(category, set) {
-            // Note: Placeholder is set to 'Weight' as the unit (kg) is implicit.
+            const template = workoutTemplates[currentWorkoutType];
+            const labels = template.inputLabels;
+            
+            // For Mobility, enforce a max of 5 for quality
+            const input2Max = currentWorkoutType === 'Mobility' ? ' max="5" min="1"' : ' min="0"';
+
+            let extraHtml = '';
+            
+            // Add Weight Selector for Endurance
+            if (currentWorkoutType === 'Endurance' && template.weights) {
+                 const weightOptions = template.weights.map(w => 
+                    `<option value="${w}" ${set.weight === w ? 'selected' : ''}>${w} kg</option>`
+                ).join('');
+
+                extraHtml = `
+                    <div class="mb-4 w-full">
+                        <label class="text-xs font-semibold text-gray-400 block mb-1">Weight Option</label>
+                        <select 
+                            onchange="updateExerciseWeight('${category}', this.value)"
+                            class="w-full text-lg font-semibold text-yellow-300 bg-[#1f2937] border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-colors cursor-pointer"
+                        >
+                            <option value="">-- Select Weight --</option>
+                            ${weightOptions}
+                        </select>
+                    </div>
+                `;
+            }
+
             return `
+                ${extraHtml}
                 <div class="flex justify-between items-center text-sm text-gray-300 bg-gray-700/30 p-2 rounded-lg">
                     <input 
                         type="number" 
                         min="0" 
-                        value="${set.weight}" 
-                        placeholder="Weight" 
+                        value="${set.input1}" 
+                        placeholder="${labels.input1}" 
                         class="set-input" 
-                        oninput="updateSingleSet('${category}', 'weight', this.value)"
+                        oninput="updateSingleSet('${category}', 'input1', this.value)"
                     >
                     <span class="text-gray-400 font-bold text-lg">x</span>
                     <input 
                         type="number" 
-                        min="0" 
-                        value="${set.reps}" 
-                        placeholder="Reps"
+                        value="${set.input2}" 
+                        placeholder="${labels.input2}"
                         class="set-input" 
-                        oninput="updateSingleSet('${category}', 'reps', this.value)"
+                        oninput="updateSingleSet('${category}', 'input2', this.value)"
+                        ${input2Max}
                     >
                 </div>
             `;
         }
 
-        /**
-         * Updates the weight or reps for the single set (always at index 0).
-         */
-        window.updateSingleSet = function(category, field, value) {
+        /** Updates the weight for Endurance. */
+        window.updateExerciseWeight = function(category, weight) {
             const setIndex = 0; 
             if (currentWorkout[category] && currentWorkout[category].sets && currentWorkout[category].sets[setIndex]) {
-                const numValue = value; 
-                currentWorkout[category].sets[setIndex][field] = numValue;
+                currentWorkout[category].sets[setIndex].weight = weight;
             }
             checkReportButtonStatus(); 
         }
 
-        /**
-         * Updates the exercise name when the user changes the dropdown.
-         */
+        /** Updates the tracked values for the single set. */
+        window.updateSingleSet = function(category, field, value) {
+            const setIndex = 0; 
+            if (currentWorkout[category] && currentWorkout[category].sets && currentWorkout[category].sets[setIndex]) {
+                currentWorkout[category].sets[setIndex][field] = value;
+            }
+            checkReportButtonStatus(); 
+        }
+
+        /** Updates the exercise name when the user changes the dropdown. */
         window.updateExerciseName = function(category, newName) {
             if (currentWorkout[category]) {
                 currentWorkout[category].name = newName;
             }
         }
         
-        /**
-         * Checks if any logged exercise has non-zero weight or reps and updates the report button state.
-         */
+        /** Checks if any logged exercise has non-zero input and updates the report button state. */
         function checkReportButtonStatus() {
             const reportBtn = document.getElementById('report-btn');
             const hasData = Object.values(currentWorkout).some(exercise => {
                 const set = exercise.sets[0]; 
-                const weight = parseFloat(set.weight) || 0;
-                const reps = parseFloat(set.reps) || 0;
-                return set && (weight > 0 || reps > 0);
+                const input1 = parseFloat(set.input1) || 0;
+                const input2 = parseFloat(set.input2) || 0;
+                const hasWeight = currentWorkoutType === 'Endurance' && set.weight;
+
+                return set && (input1 > 0 || input2 > 0 || hasWeight);
             });
             reportBtn.disabled = !hasData;
         }
 
         // --- Main Logic: Generate and Render Workout ---
         window.generateWorkout = function() {
-            const categories = Object.keys(exercises);
+            const template = workoutTemplates[currentWorkoutType];
+            const categories = template.categories;
+            const categoryExercises = template.exercises;
             let htmlContent = '';
             currentWorkout = {}; 
             
             document.getElementById('report-area').classList.add('hidden');
             document.getElementById('report-result').classList.add('hidden');
+            document.getElementById('report-btn').disabled = true;
 
             categories.forEach(category => {
-                const availableExercises = exercises[category]; // Get all exercises for the category
+                const availableExercises = categoryExercises[category]; 
                 const selectedExercise = getRandomExercise(availableExercises);
                 const iconPath = getIconPath(category);
                 
-                const singleSet = { weight: '', reps: '' }; 
+                // Initialize input values
+                const singleSet = { input1: '', input2: '', weight: template.weights ? template.weights[0] : '' }; 
                 currentWorkout[category] = {
                     name: selectedExercise,
                     sets: [singleSet]
                 };
 
-                // Create options HTML for the dropdown
-                const optionsHtml = availableExercises.map(ex => 
-                    `<option value="${ex}" ${ex === selectedExercise ? 'selected' : ''}>${ex}</option>`
-                ).join('');
+                // Create options HTML for the dropdown (only visible if more than 1 option)
+                const isFixedExercise = availableExercises.length === 1;
+                let exerciseDisplayHtml;
+                if (isFixedExercise) {
+                     exerciseDisplayHtml = `<p class="text-2xl font-extrabold text-blue-300 min-h-[30px] flex items-center">${selectedExercise}</p>`;
+                } else {
+                    const optionsHtml = availableExercises.map(ex => 
+                        `<option value="${ex}" ${ex === selectedExercise ? 'selected' : ''}>${ex}</option>`
+                    ).join('');
+                    exerciseDisplayHtml = `
+                        <select 
+                            id="exercise-select-${category}"
+                            onchange="updateExerciseName('${category}', this.value)"
+                            class="w-full text-xl md:text-2xl font-extrabold text-blue-300 bg-[#161b22] border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-pointer"
+                        >
+                            ${optionsHtml}
+                        </select>
+                    `;
+                }
+
+                // Add protocol note for Power
+                let protocolNote = '';
+                if (currentWorkoutType === 'Power') {
+                    protocolNote = `
+                        <p class="text-sm text-yellow-500 mb-2 font-mono">
+                            Target Effort: ${template.powerProtocols[0].exercise} (Set ${template.powerProtocols[0].totalSets} Protocol)
+                        </p>
+                    `;
+                }
+
 
                 htmlContent += `
                     <div class="
@@ -632,17 +805,13 @@
                             <h2 class="text-2xl font-bold text-gray-200">${category}</h2>
                         </div>
 
-                        <!-- Exercise Selector (Dropdown) -->
+                        <!-- Exercise Selector -->
                         <div class="min-h-[30px] flex items-center mb-4">
-                            <select 
-                                id="exercise-select-${category}"
-                                onchange="updateExerciseName('${category}', this.value)"
-                                class="w-full text-xl md:text-2xl font-extrabold text-blue-300 bg-[#161b22] border border-gray-600 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors cursor-pointer"
-                            >
-                                ${optionsHtml}
-                            </select>
+                            ${exerciseDisplayHtml}
                         </div>
                         
+                        ${protocolNote}
+
                         <!-- Single Set Tracker -->
                         <div id="sets-container-${category}" class="pb-3 border-t border-gray-600 pt-3">
                             ${renderSingleSetHtml(category, singleSet)}
@@ -658,9 +827,7 @@
 
         // --- LLM Integration: Generate Workout Report ---
 
-        /**
-         * Generates a copy-paste summary of the completed workout using the Gemini API.
-         */
+        /** Generates a copy-paste summary of the completed workout using the Gemini API. */
         window.generateWorkoutReport = async function() {
             const reportBtn = document.getElementById('report-btn');
             const spinner = document.getElementById('loading-spinner');
@@ -671,25 +838,37 @@
             reportArea.classList.remove('hidden');
 
             // 1. Compile logged data into a clear string
-            let loggedDataString = "Completed Strength Workout:\n";
+            const labels = workoutTemplates[currentWorkoutType].inputLabels;
+            let loggedDataString = `Completed ${currentWorkoutType} Workout. Modality Inputs: ${labels.input1} and ${labels.input2}.\n`;
             let foundData = false;
 
             Object.keys(currentWorkout).forEach(category => {
                 const exercise = currentWorkout[category];
                 const singleSet = exercise.sets[0];
                 
-                const weight = parseFloat(singleSet.weight) || 0;
-                const reps = parseFloat(singleSet.reps) || 0;
+                const input1 = singleSet.input1; 
+                const input2 = singleSet.input2;
+                const weight = singleSet.weight;
 
-                if (weight > 0 || reps > 0) {
+                if (input1 || input2 || (currentWorkoutType === 'Endurance' && weight)) {
                     foundData = true;
-                    const setsString = `${weight}kg x ${reps} reps`;
-                    loggedDataString += `${exercise.name}: ${setsString}.\n`;
+                    let setsString = '';
+                    if (currentWorkoutType === 'Endurance') {
+                        setsString = `Weight: ${weight ? weight + 'kg' : 'N/A'}, Time: ${input1 || 0} min, Reps: ${input2 || 0}`;
+                    } else if (currentWorkoutType === 'Power') {
+                        setsString = `Reps: ${input1 || 0}, Stopped on Set: ${input2 || 0}`;
+                    } else if (currentWorkoutType === 'Mobility') {
+                         setsString = `Time per side: ${input1 || 0}s, Quality: ${input2 || 0}/5`;
+                    } else {
+                        setsString = `${labels.input1}: ${input1 || 0} x ${labels.input2}: ${input2 || 0}`;
+                    }
+
+                    loggedDataString += `${exercise.name} (${category}): ${setsString}.\n`;
                 }
             });
 
             if (!foundData) {
-                reportTextEl.textContent = "Please log at least one exercise with non-zero reps or weight before generating a report.";
+                reportTextEl.textContent = "Please log at least one exercise with inputs before generating a report.";
                 resultDiv.classList.remove('hidden');
                 return;
             }
@@ -702,8 +881,7 @@
             reportTextEl.textContent = '';
             document.getElementById('copy-message').classList.add('hidden');
 
-
-            const systemPrompt = "You are a concise workout logger. Your task is to take the raw workout data provided (which consists of a single set per exercise) and condense it into a single, clean paragraph, formatted for easy copy-pasting into a personal fitness log. Do not use bullet points or line breaks. The format should be: [Exercise Name] [Weight]kg x [Reps]R, [Exercise Name] [Weight]kg x [Reps]R, ... . Only output the final paragraph, no pre-amble or extra text.";
+            const systemPrompt = `You are a concise workout logger. Your task is to take the raw workout data provided and condense it into a single, clean paragraph, formatted for easy copy-pasting into a personal fitness log. The current modality is ${currentWorkoutType}. Do not use bullet points or line breaks. The format should be: [Exercise Name] [All logged metrics]; [Exercise Name] [All logged metrics]. Only output the final paragraph, no pre-amble or extra text.`;
             const userQuery = `Condense the following single-set workout data into a single paragraph summary: \n\n${loggedDataString}`;
             
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
@@ -714,7 +892,7 @@
             };
 
             try {
-                const response = await fetchWithBackoff(apiUrl, {
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -765,9 +943,11 @@
 
         // Initialize on load
         window.onload = async function() {
+            // No need for a backoff implementation as we're using raw fetch here, 
+            // but the principle of robust API calls is maintained in generateWorkoutReport.
             await initFirebase();
-            generateWorkout();
-            updateTimerDisplay(); // Initialize timer UI
+            selectWorkoutType(currentWorkoutType); 
+            // The display update will happen in selectWorkoutType -> renderTimerControls
         };
     </script>
 </body>
